@@ -253,14 +253,19 @@ function parsePedido(text){
   // Detect language
   var lang=chunks.some(function(c){return c==="PEDIDO";})?"es":"en";
 
-  // Numero pedido: chunk matching \d+-\d+ after PEDIDO/ORDER
+  // Numero pedido: chunk matching "21 - XXXXXX" (nacional) or "51 - XXXXXX" (exportacion)
   for(var i=0;i<chunks.length;i++){
-    var m=chunks[i].match(/^(\d+\s*-\s*\d+)$/);
-    if(m&&i>0&&/PEDIDO|ORDER/i.test(chunks[i-1])){
+    var m=chunks[i].match(/^((?:21|51)\s*-\s*\d{5,7})$/);
+    if(m){
       result.numPedido=chunks[i].replace(/\s/g,"");
-      used[i]=1;used[i-1]=1;
+      used[i]=1;
+      // Mark keyword before as used too
+      if(i>0&&/PEDIDO|ORDER/i.test(chunks[i-1]))used[i-1]=1;
       // Cliente: next chunk
       if(i+1<chunks.length){result.cliente=chunks[i+1];used[i+1]=1;}
+      // Infer lang from prefix if not already set
+      if(chunks[i].match(/^21/)) lang="es";
+      else if(chunks[i].match(/^51/)) lang="en";
       break;
     }
   }
