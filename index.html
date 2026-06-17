@@ -146,8 +146,9 @@ input[type=file]{display:none}
         <div class="grid-3">
           <div class="field"><label>Cliente</label><div class="field-val" id="fn-cliente">-</div></div>
           <div class="field"><label>Obra</label><div class="field-val" id="fn-obra">-</div></div>
-          <div class="field"><label>Pedido / Fecha</label><div class="field-val" id="fn-pedido">-</div></div>
+          <div class="field"><label style="font-size:13px;font-weight:600">Nº Pedido</label><div class="field-val" id="fn-pedido" style="font-size:16px;font-weight:700;color:var(--blue)">-</div></div>
         </div>
+        <div style="margin-top:-6px;margin-bottom:6px"><span style="font-size:11px;color:var(--muted)">Fecha: </span><span id="fn-fecha" style="font-size:11px;color:var(--muted)">-</span></div>
         <div class="grid-2">
           <div class="field"><label>Pais *</label>
             <input id="fn-pais" placeholder="Espana, France..." list="paises-list">
@@ -224,6 +225,19 @@ function loadData(){try{return JSON.parse(localStorage.getItem(SK)||'{"pedidos":
 function saveData(d){localStorage.setItem(SK,JSON.stringify(d));}
 function ratioFromRef(ref){const m=ref.match(/(\d{2,4})[xX](\d{2,4})/);if(!m)return null;return(parseInt(m[1])/1000)*(parseInt(m[2])/1000);}
 function dimStr(ref){const m=ref.match(/(\d{2,4})[xX](\d{2,4})/);return m?m[1]+"x"+m[2]+" mm":"";}
+function decomposeRef(ref){
+  var parts=ref.trim().split(/\s+/);
+  var formato="",medidas="",color="",medIdx=-1;
+  for(var i=0;i<parts.length;i++){
+    if(/^\d+[xX]\d+$/.test(parts[i])){medidas=parts[i].toUpperCase();medIdx=i;break;}
+  }
+  for(var i=0;i<parts.length;i++){
+    if(medIdx>=0&&i>=medIdx)break;
+    if(parts[i].toUpperCase().charAt(0)==="F"){formato=parts[i];break;}
+  }
+  if(medIdx>=0&&medIdx+1<parts.length) color=parts.slice(medIdx+1).join(" ");
+  return {formato:formato,medidas:medidas,color:color};
+}
 async function pfGet(t,p){if(p===undefined)p="";const r=await fetch(PF_URL+"/rest/v1/"+t+"?"+p,{headers:{"apikey":PF_KEY,"Authorization":"Bearer "+PF_KEY}});if(!r.ok)throw new Error(await r.text());return r.json();}
 async function pfPost(t,b){const r=await fetch(PF_URL+"/rest/v1/"+t,{method:"POST",headers:{"apikey":PF_KEY,"Authorization":"Bearer "+PF_KEY,"Content-Type":"application/json","Prefer":"return=representation"},body:JSON.stringify(b)});if(!r.ok)throw new Error(await r.text());return r.json();}
 function handleDrop(e){e.preventDefault();document.getElementById("dropzone").classList.remove("over");const f=e.dataTransfer.files[0];if(f&&f.type==="application/pdf")handleFile(f);}
@@ -330,7 +344,7 @@ function parsePedido(text){
         }
       }
       used[i]=1;if(i+1<chunks.length)used[i+1]=1;
-      result.lines.push({tipo:tipo,ref:ref,m2Pedido:m2val,piezasPedido:pzsval});
+      var dec=decomposeRef(ref);result.lines.push({tipo:tipo,ref:ref,formato:dec.formato,medidas:dec.medidas,color:dec.color,m2Pedido:m2val,piezasPedido:pzsval});
       i++;continue;
     }
     // EN: reference code with dimensions
@@ -349,7 +363,7 @@ function parsePedido(text){
           if(/piezas/i.test(chunks[j])){var pm=chunks[j].match(/^(\d+)/);if(pm)pzsval=parseInt(pm[1]);}
         }
         used[i]=1;
-        result.lines.push({tipo:"",ref:ref,m2Pedido:m2val,piezasPedido:pzsval});
+        var dec=decomposeRef(ref);result.lines.push({tipo:"",ref:ref,formato:dec.formato,medidas:dec.medidas,color:dec.color,m2Pedido:m2val,piezasPedido:pzsval});
       }
     }
   }
@@ -384,7 +398,8 @@ function renderFormNuevo(){
   if(!draft)return;
   document.getElementById("fn-cliente").textContent=draft.cliente||"(no detectado)";
   document.getElementById("fn-obra").textContent=draft.numObra?(draft.numObra+" - "+draft.nombreObra):(draft.nombreObra||"-");
-  document.getElementById("fn-pedido").textContent=(draft.numPedido||"-")+" - "+draft.fecha;
+  document.getElementById("fn-pedido").textContent=draft.numPedido||"-";
+  var fechaEl=document.getElementById("fn-fecha");if(fechaEl)fechaEl.textContent=draft.fecha||"-";
   document.getElementById("fn-pais").value=draft.pais||"";
   document.getElementById("fn-ciudad").value=draft.ciudad||"";
   document.getElementById("fn-obs").value="";
@@ -448,7 +463,7 @@ function applyChunk(sel,targetId){
 function addLineFromChunk(sel){
   var val=sel.value;if(!val)return;
   if(!draft.lines) draft.lines=[];
-  draft.lines.push({tipo:"",ref:val,m2Pedido:null,piezasPedido:null});
+  var dec=decomposeRef(val);draft.lines.push({tipo:"",ref:val,formato:dec.formato,medidas:dec.medidas,color:dec.color,m2Pedido:null,piezasPedido:null});
   renderFormNuevo();
   sel.value="";
 }
