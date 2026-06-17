@@ -115,6 +115,30 @@ input[type=file]{display:none}
 @keyframes spin{to{transform:rotate(360deg)}}
 #toast{position:fixed;bottom:24px;right:24px;border-radius:8px;padding:11px 18px;font-size:13px;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none;font-weight:500}
 #toast.show{opacity:1}
+.stats-section{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:4px}
+.stats-head{padding:10px 16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none}
+.stats-head:hover{background:rgba(255,255,255,.02)}
+.stats-title{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;display:flex;align-items:center;gap:8px}
+.stats-body{border-top:1px solid var(--border);padding:14px 16px;display:none;flex-direction:column;gap:12px}
+.stats-body.open{display:flex}
+.ranking-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.ranking-list{display:flex;flex-direction:column;gap:6px}
+.ranking-label{font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.6px}
+.ranking-row{display:flex;align-items:center;gap:8px}
+.ranking-bar-wrap{flex:1;background:#0d1117;border-radius:4px;height:6px;overflow:hidden}
+.ranking-bar{height:6px;border-radius:4px;background:var(--blue);transition:width .3s}
+.ranking-name{font-size:12px;color:var(--text);min-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ranking-val{font-size:11px;color:var(--muted);white-space:nowrap;min-width:60px;text-align:right}
+.ref-table{width:100%;border-collapse:collapse}
+.ref-table th{font-size:11px;color:var(--muted);text-align:left;padding:6px 8px;border-bottom:1px solid var(--border);font-weight:500;cursor:pointer;user-select:none}
+.ref-table th:hover{color:var(--text)}
+.ref-table td{padding:7px 8px;border-bottom:1px solid rgba(33,38,45,.5);font-size:12px;vertical-align:middle}
+.ref-table tr:last-child td{border-bottom:none}
+.ref-table tr:hover td{background:rgba(255,255,255,.02)}
+.pct-bar{display:flex;align-items:center;gap:6px}
+.pct-fill{height:5px;border-radius:3px;background:var(--orange);min-width:2px;transition:width .3s}
+.sort-icon{font-size:10px;margin-left:3px;opacity:.5}
+.sort-icon.active{opacity:1;color:var(--blue)}
 </style>
 </head>
 <body>
@@ -192,6 +216,32 @@ input[type=file]{display:none}
       <select class="hist-filter" id="f-pais" onchange="renderHistorial()" style="min-width:130px"><option value="">Todos los paises</option></select>
     </div>
     <div id="hist-container"></div>
+
+  <!-- RANKINGS -->
+  <div class="stats-section" id="stats-rankings">
+    <div class="stats-head" onclick="toggleStats('rankings')">
+      <span class="stats-title"><i class="ti ti-trophy" style="color:var(--yellow)"></i> Rankings</span>
+      <i class="ti ti-chevron-down" id="chev-rankings" style="color:var(--muted);font-size:14px"></i>
+    </div>
+    <div class="stats-body" id="body-rankings">
+      <div class="ranking-grid">
+        <div><div class="ranking-label">Top clientes · m² producidos</div><div class="ranking-list" id="rank-clientes"></div></div>
+        <div><div class="ranking-label">Top países · m² producidos</div><div class="ranking-list" id="rank-paises"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- POR REFERENCIA -->
+  <div class="stats-section" id="stats-refs">
+    <div class="stats-head" onclick="toggleStats('refs')">
+      <span class="stats-title"><i class="ti ti-stack-2" style="color:var(--blue)"></i> Análisis por referencia</span>
+      <i class="ti ti-chevron-down" id="chev-refs" style="color:var(--muted);font-size:14px"></i>
+    </div>
+    <div class="stats-body" id="body-refs">
+      <div id="ref-stats-container"></div>
+    </div>
+  </div>
+
   </div>
 
   <div id="tab-packflow" class="panel">
@@ -611,10 +661,10 @@ async function renderPackflow(){const db=loadData();const sel=document.getElemen
 function renderPFPedido(){const db=loadData();const pid=document.getElementById("pf-select-pedido").value;const area=document.getElementById("pf-pedido-area");if(!pid){area.style.display="none";return;}const p=db.pedidos.find(x=>String(x.id)===String(pid));if(!p){area.style.display="none";return;}area.style.display="flex";area.innerHTML="";const head=document.createElement("div");head.className="card";head.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><div><div style="font-size:13px;font-weight:600;color:var(--text)">'+( p.cliente||"-")+'</div><div style="font-size:11px;color:var(--muted);margin-top:2px">'+( p.numObra?p.numObra+" - ":"")+' '+(p.nombreObra||"-")+" - "+p.fecha+" - "+p.pais+'</div></div>'+(p.pfEnviado?'<span class="badge badge-sent"><i class="ti ti-check" style="font-size:10px"></i> Ya enviado a PackFlow</span>':"")+'</div>';area.appendChild(head);p.lines.forEach((l,i)=>{const card=document.createElement("div");card.className="card";const refMatch=pfRefs.find(r=>r.nombre&&l.ref&&(r.nombre.toLowerCase().includes(l.ref.toLowerCase().split(" ")[0])||l.ref.toLowerCase().includes((r.articulo||"").toLowerCase())));const opts=pfRefs.map(r=>'<option value="'+r.id+'" '+(refMatch&&r.id===refMatch.id?"selected":"")+'>'+r.nombre+(r.articulo?' ('+r.articulo+")":"")+'</option>').join("");const hoy=new Date().toISOString().split("T")[0];card.innerHTML='<div style="display:flex;align-items:flex-start;gap:10px"><div><div style="font-size:12px;font-weight:600;color:var(--text);font-family:monospace">'+l.ref+'</div><div style="font-size:11px;color:var(--muted);margin-top:2px">'+l.tipo+(l.m2Pedido?' - '+l.m2Pedido.toFixed(2)+' m2':"")+" "+(l.piezasPedido?' - '+l.piezasPedido+' pzs':"")+'</div></div></div><div class="field"><label>Referencia en PackFlow</label><select id="pf-ref-'+p.id+"-"+i+'" onchange="updatePFCalc('+p.id+","+i+')" style="background:#0d1117;border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;padding:6px 9px;width:100%"><option value="">- sin referencia -</option>'+opts+'</select></div><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><label style="font-size:11px;color:var(--muted);white-space:nowrap">Inicio produccion</label><input type="date" id="pf-inicio-'+p.id+"-"+i+'" value="'+hoy+'" style="background:#0d1117;border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;padding:5px 9px"></div><div id="pf-calc-'+p.id+"-"+i+'" style="font-size:12px;color:var(--muted)"></div><div style="display:flex;justify-content:flex-end"><button class="btn btn-packflow btn-sm" id="pf-btn-'+p.id+"-"+i+'" onclick="enviarLineaPF('+p.id+","+i+')"><i class="ti ti-send"></i> Crear orden en PackFlow</button></div><div id="pf-status-'+p.id+"-"+i+'"></div>';area.appendChild(card);updatePFCalc(p.id,i);});}
 function updatePFCalc(pid,li){const refId=(document.getElementById("pf-ref-"+pid+"-"+li)||{value:""}).value;const el=document.getElementById("pf-calc-"+pid+"-"+li);if(!el)return;if(!refId){el.textContent="";return;}const ref=pfRefs.find(r=>r.id===refId);if(!ref){el.textContent="";return;}const db=loadData();const p=db.pedidos.find(x=>String(x.id)===String(pid));if(!p)return;const l=p.lines[li];const pzs=l.piezasPedido||0;const pzsPale=ref.piezas_pale||0;const pales=pzsPale>0?Math.ceil(pzs/pzsPale):0;const dias=ref.proddia>0?Math.ceil(pales/ref.proddia):0;el.innerHTML='<span style="color:var(--blue)">'+ref.nombre+'</span> - '+pzsPale+' pzs/pale - '+ref.proddia+' pales/dia'+(pzs>0?' &rarr; <strong style="color:var(--text)">'+pales+' pales</strong>, ~'+dias+' dias':"");}
 async function enviarLineaPF(pid,li){const refId=(document.getElementById("pf-ref-"+pid+"-"+li)||{value:""}).value;const inicioVal=(document.getElementById("pf-inicio-"+pid+"-"+li)||{value:""}).value;const statusEl=document.getElementById("pf-status-"+pid+"-"+li);const btn=document.getElementById("pf-btn-"+pid+"-"+li);if(!refId){showToast("Selecciona una referencia de PackFlow",true);return;}if(!inicioVal){showToast("Indica la fecha de inicio",true);return;}const db=loadData();const p=db.pedidos.find(x=>String(x.id)===String(pid));if(!p)return;const l=p.lines[li];const ref=pfRefs.find(r=>r.id===refId);const pzs=l.piezasPedido||0;const pzsPale=(ref||{}).piezas_pale||0;const pales=pzsPale>0?Math.ceil(pzs/pzsPale):1;const dias=(ref||{}).proddia>0?Math.ceil(pales/ref.proddia):1;const fin=new Date(inicioVal);fin.setDate(fin.getDate()+dias);const finStr=fin.toISOString().split("T")[0];statusEl.innerHTML='<div class="pf-status-bar pf-status-loading"><div class="spinner"></div> Enviando a PackFlow...</div>';if(btn)btn.disabled=true;try{await pfPost("ordenes",{id:"ORD-"+Date.now(),ref_id:refId,cantidad:pales,inicio:inicioVal,fin:finStr,dias});statusEl.innerHTML='<div class="pf-status-bar pf-status-ok"><i class="ti ti-check"></i> Orden creada: <strong>'+pales+' pales</strong> - inicio '+inicioVal+' - fin estimado '+finStr+'</div>';p.pfEnviado=true;saveData(db);showToast("Orden creada en PackFlow", false);updateTabCounts();}catch(e){statusEl.innerHTML='<div class="pf-status-bar pf-status-err"><i class="ti ti-alert-triangle"></i> Error: '+e.message+'</div>';}if(btn)btn.disabled=false;}
-function renderHistorial(){const db=loadData();const cerrados=db.pedidos.filter(p=>p.estado==="cerrado");const fc=((document.getElementById("f-cliente")||{value:""}).value||"").toLowerCase();const fo=((document.getElementById("f-obra")||{value:""}).value||"").toLowerCase();const fp=(document.getElementById("f-pais")||{value:""}).value||"";const filtered=cerrados.filter(p=>(!fc||(p.cliente||"").toLowerCase().includes(fc))&&(!fo||(p.nombreObra||"").toLowerCase().includes(fo)||(p.numObra||"").includes(fo))&&(!fp||p.pais===fp)).reverse();document.getElementById("kpi-pedidos").textContent=cerrados.length;var _m2sob=cerrados.reduce((s,p)=>s+p.lines.reduce((ss,l)=>ss+(l.m2Sobrante||0),0),0);
+function renderHistorial(){const db=loadData();const cerrados=db.pedidos.filter(p=>p.estado==="cerrado");const fc=((document.getElementById("f-cliente")||{value:""}).value||"").toLowerCase();const fo=((document.getElementById("f-obra")||{value:""}).value||"").toLowerCase();const fp=(document.getElementById("f-pais")||{value:""}).value||"";const filtered=cerrados.filter(p=>(!fc||(p.cliente||"").toLowerCase().includes(fc))&&(!fo||(p.nombreObra||"").toLowerCase().includes(fo)||(p.numObra||"").includes(fo))&&(!fp||p.pais===fp)).reverse();var _m2sob=cerrados.reduce((s,p)=>s+p.lines.reduce((ss,l)=>ss+(l.m2Sobrante||0),0),0);
   var _m2ped=cerrados.reduce((s,p)=>s+p.lines.reduce((ss,l)=>ss+(l.m2Pedido||0),0),0);
   document.getElementById("kpi-m2").textContent=_m2sob.toFixed(2);
-  var _el=document.getElementById("kpi-m2pedido");if(_el)_el.textContent=_m2ped.toFixed(2);var _pct2=_m2ped>0?((_m2sob/_m2ped)*100).toFixed(1):null;var _elpc=document.getElementById("kpi-pct");if(_elpc){_elpc.textContent=_pct2?_pct2+"%":"—";_elpc.style.color=_pct2&&parseFloat(_pct2)<5?"var(--green)":_pct2&&parseFloat(_pct2)<10?"var(--yellow)":"var(--orange)";}document.getElementById("kpi-clientes").textContent=new Set(cerrados.map(p=>p.cliente)).size;document.getElementById("kpi-paises").textContent=new Set(cerrados.map(p=>p.pais).filter(Boolean)).size;const sel=document.getElementById("f-pais");const prev=sel.value;sel.innerHTML='<option value="">Todos los paises</option>';[...new Set(cerrados.map(p=>p.pais).filter(Boolean))].sort().forEach(px=>{const o=document.createElement("option");o.value=px;o.textContent=px;if(px===prev)o.selected=true;sel.appendChild(o);});const c=document.getElementById("hist-container");if(!filtered.length){c.innerHTML='<div class="empty-state"><i class="ti ti-inbox"></i><p>No hay pedidos cerrados</p></div>';return;}c.innerHTML="";filtered.forEach(p=>{const totalPzs=p.lines.reduce((s,l)=>s+(l.piezasSobrante||0),0);
+  var _el=document.getElementById("kpi-m2pedido");if(_el)_el.textContent=_m2ped.toFixed(2);var _pct2=_m2ped>0?((_m2sob/_m2ped)*100).toFixed(1):null;var _elpc=document.getElementById("kpi-pct");if(_elpc){_elpc.textContent=_pct2?_pct2+"%":"—";_elpc.style.color=_pct2&&parseFloat(_pct2)<5?"var(--green)":_pct2&&parseFloat(_pct2)<10?"var(--yellow)":"var(--orange)";}document.getElementById("kpi-clientes").textContent=new Set(filtered.map(p=>p.cliente)).size;document.getElementById("kpi-paises").textContent=new Set(filtered.map(p=>p.pais).filter(Boolean)).size;const sel=document.getElementById("f-pais");const prev=sel.value;sel.innerHTML='<option value="">Todos los paises</option>';[...new Set(cerrados.map(p=>p.pais).filter(Boolean))].sort().forEach(px=>{const o=document.createElement("option");o.value=px;o.textContent=px;if(px===prev)o.selected=true;sel.appendChild(o);});const c=document.getElementById("hist-container");if(!filtered.length){c.innerHTML='<div class="empty-state"><i class="ti ti-inbox"></i><p>No hay pedidos cerrados</p></div>';return;}c.innerHTML="";filtered.forEach(p=>{const totalPzs=p.lines.reduce((s,l)=>s+(l.piezasSobrante||0),0);
     const totalM2p=p.lines.reduce((s,l)=>s+(l.m2Sobrante||0),0);
     const totalM2ped=p.lines.reduce((s,l)=>s+(l.m2Pedido||0),0);
     const pctSob=totalM2ped>0?((totalM2p/totalM2ped)*100).toFixed(1):null;const card=document.createElement("div");card.className="pedido-card";let linesHtml=p.lines.map(function(l){
@@ -689,6 +739,133 @@ function viewPDF(pedidoId){
     var url=URL.createObjectURL(blob);
     window.open(url,"_blank");
   }).catch(function(){showToast("Error abriendo PDF",true);});
+}
+
+function toggleStats(name){
+  var body=document.getElementById("body-"+name);
+  var chev=document.getElementById("chev-"+name);
+  if(!body)return;
+  var open=body.classList.toggle("open");
+  if(chev)chev.style.transform=open?"rotate(180deg)":"";
+}
+
+var _refSortCol="m2Sob", _refSortDir=-1;
+
+function renderStats(filtered, allCerrados){
+  renderRankings(filtered);
+  renderRefStats(filtered);
+}
+
+function renderRankings(data){
+  // Top clientes
+  var cMap={};
+  data.forEach(function(p){
+    var k=p.cliente||"—";
+    if(!cMap[k])cMap[k]={m2ped:0,m2sob:0};
+    p.lines.forEach(function(l){cMap[k].m2ped+=l.m2Pedido||0;cMap[k].m2sob+=l.m2Sobrante||0;});
+  });
+  var cList=Object.entries(cMap).sort(function(a,b){return b[1].m2ped-a[1].m2ped;}).slice(0,6);
+  var maxC=cList.length>0?cList[0][1].m2ped:1;
+  var rcEl=document.getElementById("rank-clientes");
+  if(!rcEl)return;
+  rcEl.innerHTML=cList.map(function(e){
+    var pct=Math.round((e[1].m2ped/maxC)*100);
+    var name=e[0].length>22?e[0].slice(0,22)+"…":e[0];
+    return '<div class="ranking-row">'+
+      '<div class="ranking-name" title="'+e[0]+'">'+name+'</div>'+
+      '<div class="ranking-bar-wrap"><div class="ranking-bar" style="width:'+pct+'%"></div></div>'+
+      '<div class="ranking-val">'+e[1].m2ped.toFixed(0)+' m²</div>'+
+    '</div>';
+  }).join("");
+
+  // Top paises
+  var pMap={};
+  data.forEach(function(p){
+    var k=p.pais||"—";
+    if(!pMap[k])pMap[k]={m2ped:0,m2sob:0};
+    p.lines.forEach(function(l){pMap[k].m2ped+=l.m2Pedido||0;pMap[k].m2sob+=l.m2Sobrante||0;});
+  });
+  var pList=Object.entries(pMap).sort(function(a,b){return b[1].m2ped-a[1].m2ped;}).slice(0,6);
+  var maxP=pList.length>0?pList[0][1].m2ped:1;
+  var rpEl=document.getElementById("rank-paises");
+  if(!rpEl)return;
+  rpEl.innerHTML=pList.map(function(e){
+    var pct=Math.round((e[1].m2ped/maxP)*100);
+    return '<div class="ranking-row">'+
+      '<div class="ranking-name">'+e[0]+'</div>'+
+      '<div class="ranking-bar-wrap"><div class="ranking-bar" style="width:'+pct+'%;background:var(--green)"></div></div>'+
+      '<div class="ranking-val">'+e[1].m2ped.toFixed(0)+' m²</div>'+
+    '</div>';
+  }).join("");
+}
+
+function renderRefStats(data){
+  var rMap={};
+  data.forEach(function(p){
+    p.lines.forEach(function(l){
+      var fmt=l.formato||"—", med=l.medidas||"—", col=l.color||"—";
+      var k=fmt+"|"+med+"|"+col;
+      if(!rMap[k])rMap[k]={formato:fmt,medidas:med,color:col,m2ped:0,m2sob:0,pzsSob:0,pedidos:new Set()};
+      rMap[k].m2ped+=l.m2Pedido||0;
+      rMap[k].m2sob+=l.m2Sobrante||0;
+      rMap[k].pzsSob+=l.piezasSobrante||0;
+      rMap[k].pedidos.add(p.id);
+    });
+  });
+  var list=Object.values(rMap);
+  // Sort
+  list.sort(function(a,b){
+    var av=_refSortCol==="m2Sob"?a.m2sob:_refSortCol==="m2Ped"?a.m2ped:_refSortCol==="pct"?(a.m2ped>0?a.m2sob/a.m2ped:0):a.pedidos.size;
+    var bv=_refSortCol==="m2Sob"?b.m2sob:_refSortCol==="m2Ped"?b.m2ped:_refSortCol==="pct"?(b.m2ped>0?b.m2sob/b.m2ped:0):b.pedidos.size;
+    return _refSortDir*(bv-av);
+  });
+  var maxSob=list.length>0?Math.max.apply(null,list.map(function(r){return r.m2sob;})):1;
+  var el=document.getElementById("ref-stats-container");
+  if(!el)return;
+  if(!list.length){el.innerHTML='<p style="font-size:12px;color:var(--muted)">Sin datos</p>';return;}
+
+  function sortTh(col,label){
+    var active=_refSortCol===col;
+    var style=active?"color:var(--blue)":"";
+    var icon=_refSortDir===-1?"↓":"↑";
+    var cls="sort-icon"+(active?" active":"");
+    return "<th onclick=\"sortRefs('"+col+"')\" style=\""+style+"\">"+label+"<span class=\""+cls+"\">"+icon+"</span></th>";
+  }
+
+  el.innerHTML='<table class="ref-table"><thead><tr>'+
+    '<th>Formato</th><th>Medidas</th><th>Color</th>'+
+    sortTh("m2Ped","m² ped.")+
+    sortTh("m2Sob","m² sob.")+
+    sortTh("pct","% sob.")+
+    sortTh("pedidos","Pedidos")+
+  '</tr></thead><tbody>'+
+  list.map(function(r){
+    var pct=r.m2ped>0?((r.m2sob/r.m2ped)*100):0;
+    var barW=maxSob>0?Math.round((r.m2sob/maxSob)*80):0;
+    var pctColor=pct<5?"var(--green)":pct<10?"var(--yellow)":"var(--orange)";
+    return '<tr>'+
+      '<td><span style="background:rgba(88,166,255,.15);color:var(--blue);border-radius:4px;padding:2px 7px;font-size:11px;font-weight:600;font-family:monospace">'+r.formato+'</span></td>'+
+      '<td><span style="background:rgba(240,136,62,.12);color:var(--orange);border-radius:4px;padding:2px 7px;font-size:11px">'+r.medidas+'</span></td>'+
+      '<td style="font-size:11px;color:var(--muted)">'+r.color+'</td>'+
+      '<td style="color:var(--muted)">'+r.m2ped.toFixed(1)+' m²</td>'+
+      '<td><div class="pct-bar"><div class="pct-fill" style="width:'+barW+'px"></div><span style="color:var(--orange)">'+r.m2sob.toFixed(1)+' m²</span></div></td>'+
+      '<td><span style="color:'+pctColor+';font-weight:600">'+pct.toFixed(1)+'%</span></td>'+
+      '<td style="color:var(--muted)">'+r.pedidos.size+'</td>'+
+    '</tr>';
+  }).join("")+
+  '</tbody></table>';
+}
+
+function sortRefs(col){
+  if(_refSortCol===col)_refSortDir*=-1;
+  else{_refSortCol=col;_refSortDir=-1;}
+  var db=loadData();
+  var cerrados=db.pedidos.filter(function(p){return p.estado==="cerrado";});
+  var fc=(document.getElementById("f-cliente")||{value:""}).value.toLowerCase();
+  var fo=(document.getElementById("f-obra")||{value:""}).value.toLowerCase();
+  var fp=(document.getElementById("f-pais")||{value:""}).value;
+  var filtered=cerrados.filter(function(p){return(!fc||(p.cliente||"").toLowerCase().includes(fc))&&(!fo||(p.nombreObra||"").toLowerCase().includes(fo)||(p.numObra||"").includes(fo))&&(!fp||p.pais===fp);});
+  renderRefStats(filtered);
 }
 
 function updateTabCounts(){const db=loadData();document.getElementById("cnt-abiertos").textContent=db.pedidos.filter(p=>p.estado==="abierto").length;}
