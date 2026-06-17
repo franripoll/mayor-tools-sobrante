@@ -162,6 +162,7 @@ input[type=file]{display:none}
           <div class="field"><label>Ciudad</label><input id="fn-ciudad" placeholder="Barcelona, Paris..."></div>
         </div>
         <div class="field"><label>Observacion general</label><textarea id="fn-obs" placeholder="Notas del pedido..."></textarea></div>
+        <div id="fn-chunk-area" style="display:none;background:rgba(88,166,255,.06);border:1px solid rgba(88,166,255,.2);border-radius:7px;padding:12px;margin-top:4px"></div>
         <hr class="divider">
         <div class="section-label">Lineas ceramicas</div>
         <div class="lines-list" id="fn-lines"></div>
@@ -229,89 +230,228 @@ function handleDrop(e){e.preventDefault();document.getElementById("dropzone").cl
 function handleFile(file){if(!file)return;const r=new FileReader();r.onload=async(ev)=>{try{const pdf=await pdfjsLib.getDocument({data:new Uint8Array(ev.target.result)}).promise;let txt="";for(let i=1;i<=pdf.numPages;i++){const pg=await pdf.getPage(i);const ct=await pg.getTextContent();txt+=ct.items.map(it=>it.str).join(" ")+"\n";}parsePedido(txt);}catch(err){showToast("Error leyendo PDF",true);}};r.readAsArrayBuffer(file);}
 function parsePedido(text){
   try{
-  var t=text.replace(/\r/g,"").replace(/\n/g," ").trim();
-  t=t.replace(/\s+/g," ");
-  var es=!!t.match(/\bPEDIDO\b/);
-  var lang=es?"es":"en";
-  var kw=lang==="es"?"PEDIDO":"ORDER";
-  var pm=t.match(new RegExp(kw+"\\s+(\\d+\\s*-\\s*\\d+)","i"));
-  var numPedido=pm?pm[1].replace(/\s/g,""):"";
-  var cliente="";
-  if(pm){
-    var rest=t.slice(t.indexOf(pm[1])+pm[1].length).trim();
-    var cm;
-    if(lang==="es"){cm=rest.match(/(.+?)(?=\s+(?:AVDA|C\/|CALLE|PASEO|Fecha\s+Pedido|\d{2}\/\d{2}))/i);}
-    else{cm=rest.match(/(.+?)(?=\s+\d+\s+[A-Z])/);}
-    cliente=cm?cm[1].trim():rest.slice(0,60).trim();
-    cliente=cliente.replace(/[\s,\.]+$/,"");
-  }
-  var fm=t.match(/(?:Fecha\s+Pedido|Order\s+Date)\s+([\d\/]+)/i);
-  var fecha=fm?fm[1]:"";
-  var numObra="",nombreObra="";
-  if(lang==="es"){
-    var om=t.match(/Obra\s+(\d+)\s+([\w\s]+?)(?=\s*(?:CIF|Fecha Entrega))/i);
-    numObra=om?om[1].trim():"";
-    nombreObra=om?om[2].replace(/\s+/g," ").trim():"";
-    if(!nombreObra){var rm=t.match(/Su\s+Referencia\s+(.+?)(?=\s+(?:Obra|\d))/i);if(rm)nombreObra=rm[1].trim();}
-  }else{
-    var om=t.match(/Proyect\s+(\d+)\s+([\w\s]+?)(?=\s*(?:VAT|Appr))/i);
-    numObra=om?om[1].trim():"";
-    nombreObra=om?om[2].replace(/\s+/g," ").trim():"";
-    if(!nombreObra||nombreObra.length<3){var rm=t.match(/Reference\s+(\w[\w\s]+?)(?=\s+(?:Proyect|Client|Canad|$))/i);if(rm)nombreObra=rm[1].trim();}
-  }
-  var paisM=t.match(/\b(Espa[n\u00f1]a|France|Portugal|Italy|Deutschland|United Kingdom|Netherlands|Belgium|Polska|Canad[\u00e1a]|United States|Mexico|M[\u00e9e]xico|Saudi Arabia|UAE|Qatar|Australia)\b/i);
-  var pais=paisM?paisM[1]:"";
-  var pl=pais.toLowerCase();
-  if(pl==="espana"||pl==="espa\u00f1a")pais="Espa\u00f1a";
-  if(pl==="canada"||pl==="canad\u00e1")pais="Canad\u00e1";
-  var ciudad="";
-  if(lang==="es"){
-    var cm3=t.match(/\b(\d{5})\s+([A-Z\u00c1\u00c9\u00cd\u00d3\u00da][A-Za-z\u00e1\u00e9\u00ed\u00f3\u00fa\u00f1\u00c1\u00c9\u00cd\u00d3\u00da\u00d1]+)/);
-    ciudad=cm3?cm3[2].charAt(0).toUpperCase()+cm3[2].slice(1).toLowerCase():"";
-  }else{
-    var cm3=t.match(/[A-Z0-9]{2,4}-[A-Z0-9]{2,4}\s+([A-Z][A-Za-z\s]+?)(?:\s*\([^)]+\))?\s+(?:Canad|United|France|Portu|Austr)/i);
-    ciudad=cm3?cm3[1].trim().replace(/\b\w/g,function(c){return c.toUpperCase();}):"";
-  }
-  var lines=[];
-  var seen={};
-  if(lang==="es"){
-    var linePat=/PIEZAS\s+CER[A\u00c1]MICAS\s+([\w\s]+?)\s+((?:FFO|FF|FNA|FN|FK)\d+\/\d+\s+\d+[xX]\d+\s+[\w]+(?:\s+[\w\.]+)?)/gi;
-    var lm;
-    while((lm=linePat.exec(t))!==null){
-      var tipo=lm[1].trim();
-      var ref=lm[2].trim();
-      var key=ref.slice(0,12);
-      if(seen[key])continue;
-      seen[key]=1;
-      var snip=t.slice(lm.index,lm.index+300);
-      var m2m=snip.match(/(\d+[,\.]\d{4})\s*(?:[\d\.,]+)?\s*M2/i);
-      if(!m2m)m2m=snip.match(/(\d+[,\.]\d+)\s*M2/i);
-      var pzm=snip.match(/(\d+)\s+piezas/i);
-      lines.push({tipo:tipo,ref:ref,m2Pedido:m2m?parseFloat(m2m[1].replace(",",".")):null,piezasPedido:pzm?parseInt(pzm[1]):null});
-    }
-  }else{
-    var hdr=t.match(/Description\s+of\s+goods/i);
-    var area=hdr?t.slice(t.indexOf(hdr[0])+hdr[0].length):t;
-    var linePat=/([A-Z]{2,5}\d+\s+\d{3,4}[xX]\d{3,4}\s+[A-Z0-9]+(?:\s+[A-Z]+){0,3}?)\s+(?:Std|Non-Std)/gi;
-    var lm;
-    while((lm=linePat.exec(area))!==null){
-      var ref=lm[1].trim();
-      var key=ref.slice(0,12);
-      if(seen[key])continue;
-      seen[key]=1;
-      var snip=area.slice(lm.index,lm.index+200);
-      var m2m=snip.match(/([\d\.]+[\d,]\d{4})\s*(?:[\d\.,]+)?\s*M2/i);
-      var m2val=null;
-      if(m2m){var raw=m2m[1].replace(/\./g,"").replace(",",".");m2val=parseFloat(raw);}
-      var pzm=snip.match(/(\d+)\s+piezas/i);
-      lines.push({tipo:"",ref:ref,m2Pedido:m2val,piezasPedido:pzm?parseInt(pzm[1]):null});
+  // Split into chunks (lines) as PDF.js delivers them
+  var chunks=text.split(/\n/).map(function(c){return c.trim();}).filter(function(c){return c.length>1;});
+  var used={};
+  var result={numPedido:"",cliente:"",fecha:"",numObra:"",nombreObra:"",pais:"",ciudad:"",lines:[],allChunks:chunks};
+
+  // Detect language
+  var lang=chunks.some(function(c){return c==="PEDIDO";})?"es":"en";
+
+  // Numero pedido: chunk matching \d+-\d+ after PEDIDO/ORDER
+  for(var i=0;i<chunks.length;i++){
+    var m=chunks[i].match(/^(\d+\s*-\s*\d+)$/);
+    if(m&&i>0&&/PEDIDO|ORDER/i.test(chunks[i-1])){
+      result.numPedido=chunks[i].replace(/\s/g,"");
+      used[i]=1;used[i-1]=1;
+      // Cliente: next chunk
+      if(i+1<chunks.length){result.cliente=chunks[i+1];used[i+1]=1;}
+      break;
     }
   }
-  draft={cliente:cliente,numObra:numObra,nombreObra:nombreObra,numPedido:numPedido,fecha:fecha,pais:pais,ciudad:ciudad,lines:lines};
+
+  // Fecha
+  for(var i=0;i<chunks.length;i++){
+    if(/^(?:Fecha\s+Pedido|Order\s+Date)$/i.test(chunks[i])){
+      if(i+1<chunks.length){result.fecha=chunks[i+1];used[i]=1;used[i+1]=1;}
+      break;
+    }
+  }
+
+  // Obra / numObra: "Obra" chunk -> next is number, then name
+  for(var i=0;i<chunks.length;i++){
+    if(/^(?:Obra|Proyect)$/.test(chunks[i])){
+      // next chunk could be just the number
+      if(i+1<chunks.length&&/^\d+$/.test(chunks[i+1].trim())){
+        result.numObra=chunks[i+1].trim();
+        used[i]=1;used[i+1]=1;
+        if(i+2<chunks.length){result.nombreObra=chunks[i+2];used[i+2]=1;}
+      } else if(i+1<chunks.length){
+        // number embedded: "2 KRONOS..." or "66 663 PORTLAND..."
+        var nm=chunks[i+1].match(/^(\d+)\s+(.+)$/);
+        if(nm){result.numObra=nm[1];result.nombreObra=nm[2];used[i]=1;used[i+1]=1;}
+      }
+      break;
+    }
+  }
+
+  // nombreObra fallback: Su Referencia / Reference
+  if(!result.nombreObra){
+    for(var i=0;i<chunks.length;i++){
+      if(/^Su\s+Referencia$/i.test(chunks[i])||/^Reference$/i.test(chunks[i])){
+        if(i+1<chunks.length){result.nombreObra=chunks[i+1];used[i]=1;used[i+1]=1;}
+        break;
+      }
+    }
+  }
+
+  // Pais
+  var PAISES=/^(Espa[n\u00f1]a|France|Portugal|Italy|Deutschland|United Kingdom|Netherlands|Belgium|Polska|Canad[\u00e1a]|United States|Mexico|M[\u00e9e]xico|Saudi Arabia|UAE|Qatar|Australia)$/i;
+  for(var i=0;i<chunks.length;i++){
+    if(PAISES.test(chunks[i])){
+      result.pais=chunks[i].replace(/espana/i,"Espa\u00f1a").replace(/^canada$/i,"Canad\u00e1");
+      used[i]=1;break;
+    }
+  }
+
+  // Ciudad ES: standalone 5-digit chunk -> next chunk is city
+  if(lang==="es"){
+    for(var i=0;i<chunks.length;i++){
+      if(/^\d{5}$/.test(chunks[i])&&i+1<chunks.length){
+        result.ciudad=chunks[i+1];used[i]=1;used[i+1]=1;break;
+      }
+    }
+  } else {
+    // EN: chunk like "B3E-1E9 PORTERS LAKE (NOVA SCOTIA)"
+    for(var i=0;i<chunks.length;i++){
+      var cm=chunks[i].match(/^[A-Z0-9]{2,4}-[A-Z0-9]{2,4}\s+([A-Za-z\s]+?)(?:\s*\([^)]+\))?$/);
+      if(cm){result.ciudad=cm[1].trim();used[i]=1;break;}
+    }
+  }
+
+  // Lineas ceramicas
+  for(var i=0;i<chunks.length;i++){
+    // ES: "PIEZAS CERAMICAS X ONDAS"
+    var tm=chunks[i].match(/^PIEZAS\s+CER[A\u00c1]MICAS\s+(.+)$/i);
+    if(tm){
+      var tipo=tm[1].trim();
+      var ref=i+1<chunks.length?chunks[i+1]:"";
+      var m2val=null,pzsval=null;
+      for(var j=i;j<Math.min(i+12,chunks.length);j++){
+        if(/^M2$/i.test(chunks[j])&&j>0){
+          var prev=chunks[j-1];
+          // prev is like "914,4700 33.835,39" - take first number
+          var nm=prev.match(/^([\d]+[,\.][\d]+)/);
+          if(nm)m2val=parseFloat(nm[1].replace(",","."));
+        }
+        if(/piezas/i.test(chunks[j])){
+          var pm=chunks[j].match(/^(\d+)/);
+          if(pm)pzsval=parseInt(pm[1]);
+        }
+      }
+      used[i]=1;if(i+1<chunks.length)used[i+1]=1;
+      result.lines.push({tipo:tipo,ref:ref,m2Pedido:m2val,piezasPedido:pzsval});
+      i++;continue;
+    }
+    // EN: reference code with dimensions
+    if(lang==="en"){
+      var rm=chunks[i].match(/^([A-Z]{2,5}\d+\s+\d{3,4}[xX]\d{3,4}\s+[A-Z0-9]+(?:\s+[A-Z]+){0,3})$/i);
+      if(rm&&!/PORTLAND|CRANTON|STREET|DRIVE|AVENUE/i.test(chunks[i])){
+        var ref=chunks[i].trim();
+        var m2val=null,pzsval=null;
+        for(var j=i;j<Math.min(i+8,chunks.length);j++){
+          if(/^M2$/i.test(chunks[j])&&j>0){
+            var prev=chunks[j-1];
+            // EN: "1.641,6000" - remove dots (thousands), comma->dot
+            var nm=prev.match(/([\d\.]+,\d+)/);
+            if(nm){var raw=nm[1].replace(/\./g,"").replace(",",".");m2val=parseFloat(raw);}
+          }
+          if(/piezas/i.test(chunks[j])){var pm=chunks[j].match(/^(\d+)/);if(pm)pzsval=parseInt(pm[1]);}
+        }
+        used[i]=1;
+        result.lines.push({tipo:"",ref:ref,m2Pedido:m2val,piezasPedido:pzsval});
+      }
+    }
+  }
+
+  // Unmatched chunks (useful text not assigned to any field)
+  var SKIP_PAT=/^(PEDIDO|ORDER|Obra|Proyect|Std|Non-Std|M2|Su Referencia|Reference|Fecha Pedido|Order Date|C[oó]d\. Cliente|Client Nr\.|Fecha Entrega Aprox\.|Appr\. Delivery Date|Centro destino|Dest\. cen\.|Observaciones|Notes|Usuario|User|Forma de pago|Payment terms|Incoterm|Portes|Transport|TRANSPORTE|ANCLAJES|Peso Neto|Peso Bruto|Gross Weight|Net Weight|Base Imponible|% IVA|Total|Forma de Env[ií]o|Type Delivery|Seguimiento online:|Online Tracking:|Descripci[oó]n|Description of goods|Importe|Cantidad|Peso|% Dtos\.|Precio|Cld\.|Pal\. Cajas|Qlt\.|Datos Bancarios)$/i;
+  var unmatched=[];
+  for(var i=0;i<chunks.length;i++){
+    if(used[i])continue;
+    var c=chunks[i].trim();
+    if(c.length<3)continue;
+    if(/^[\d\.\,\s\%]+$/.test(c))continue;
+    if(/^https?:\/\//.test(c))continue;
+    if(/^P[aá]g\.|^Page\b/.test(c))continue;
+    if(SKIP_PAT.test(c))continue;
+    if(/^\d{2}\/\d{2}\/\d{4}/.test(c))continue;
+    if(/^[A-Z0-9]{2,4}-[A-Z0-9]{2,4}$/.test(c))continue;
+    unmatched.push(c);
+  }
+  result.allChunks=unmatched;
+
+  // Store and render
+  draft={
+    cliente:result.cliente,numObra:result.numObra,nombreObra:result.nombreObra,
+    numPedido:result.numPedido,fecha:result.fecha,pais:result.pais,ciudad:result.ciudad,
+    lines:result.lines,pdfChunks:result.allChunks
+  };
   renderFormNuevo();
   }catch(err){console.error("parsePedido error:",err.message);}
 }
-function renderFormNuevo(){if(!draft)return;document.getElementById("fn-cliente").textContent=draft.cliente||"(no detectado)";document.getElementById("fn-obra").textContent=draft.numObra?draft.numObra+" - "+draft.nombreObra:draft.nombreObra||"-";document.getElementById("fn-pedido").textContent=(draft.numPedido||"-")+" - "+draft.fecha;document.getElementById("fn-pais").value=draft.pais||"";document.getElementById("fn-ciudad").value=draft.ciudad||"";document.getElementById("fn-obs").value="";const lc=document.getElementById("fn-lines");lc.innerHTML="";if(!draft.lines.length){lc.innerHTML='<p style="font-size:12px;color:var(--muted)">No se detectaron lineas ceramicas.</p>';}else{draft.lines.forEach(l=>{const ratio=ratioFromRef(l.ref);const ds=dimStr(l.ref);const div=document.createElement("div");div.className="line-row";div.innerHTML='<div class="line-info"><div class="line-ref">'+l.ref+'</div><div class="line-sub">'+l.tipo+'</div><div class="line-pedido">'+( l.m2Pedido?l.m2Pedido.toFixed(2)+" m2":"")+' '+(l.piezasPedido?"- "+l.piezasPedido+" pzs":"")+'</div>'+(ds&&ratio?'<div class="line-dims">'+ds+" - "+ratio.toFixed(4)+' m2/pza</div>':"")+'</div>';lc.appendChild(div);});}document.getElementById("dropzone").style.display="none";document.getElementById("form-nuevo").style.display="block";}
+function renderFormNuevo(){
+  if(!draft)return;
+  document.getElementById("fn-cliente").textContent=draft.cliente||"(no detectado)";
+  document.getElementById("fn-obra").textContent=draft.numObra?(draft.numObra+" - "+draft.nombreObra):(draft.nombreObra||"-");
+  document.getElementById("fn-pedido").textContent=(draft.numPedido||"-")+" - "+draft.fecha;
+  document.getElementById("fn-pais").value=draft.pais||"";
+  document.getElementById("fn-ciudad").value=draft.ciudad||"";
+  document.getElementById("fn-obs").value="";
+
+  // Render chunk selector if we have unmatched chunks
+  var chunks=draft.pdfChunks||[];
+  renderChunkSelectors(chunks);
+
+  // Render lines
+  var lc=document.getElementById("fn-lines");lc.innerHTML="";
+  if(!draft.lines.length){
+    lc.innerHTML="<p style=\"font-size:12px;color:var(--muted)\">No se detectaron lineas ceramicas.</p>";
+  } else {
+    draft.lines.forEach(function(l){
+      var ratio=ratioFromRef(l.ref);var ds=dimStr(l.ref);var div=document.createElement("div");div.className="line-row";
+      div.innerHTML="<div class=\"line-info\"><div class=\"line-ref\">"+l.ref+"</div><div class=\"line-sub\">"+l.tipo+"</div><div class=\"line-pedido\">"+(l.m2Pedido?l.m2Pedido.toFixed(2)+" m2":"")+"\u00a0"+(l.piezasPedido?"\u00b7 "+l.piezasPedido+" pzs":"")+"</div>"+(ds&&ratio?"<div class=\"line-dims\">"+ds+" \u00b7 "+ratio.toFixed(4)+" m2/pza</div>":"")+"</div>";
+      lc.appendChild(div);
+    });
+  }
+  document.getElementById("dropzone").style.display="none";document.getElementById("form-nuevo").style.display="block";
+}
+
+function renderChunkSelectors(chunks){
+  var area=document.getElementById("fn-chunk-area");
+  if(!area)return;
+  if(!chunks||chunks.length===0){area.style.display="none";return;}
+  area.style.display="block";
+  var opts=chunks.map(function(c,i){return "<option value=\""+c.replace(/"/g,"&quot;")+"\">["+i+"] "+c.replace(/</g,"&lt;")+"</option>";}).join("");
+  var sel=function(id,label){
+    return "<div class=\"field\" style=\"margin-bottom:6px\"><label style=\"font-size:11px;color:var(--muted)\">"+label+"</label>"+
+    "<select class=\"chunk-sel\" onchange=\"applyChunk(this,'"+id+"')\" style=\"background:#0d1117;border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px;padding:5px 8px;width:100%\">"+
+    "<option value=\"\">\u2014 selecciona del PDF \u2014</option>"+opts+"</select></div>";
+  };
+  // Only show selectors for empty fields
+  var html="<div style=\"font-size:11px;color:var(--blue);margin-bottom:8px\"><i class=\"ti ti-hand-click\"></i> Selecciona los campos que no se han detectado autom\u00e1ticamente:</div>";
+  if(!draft.cliente) html+=sel("fn-cliente","Cliente");
+  if(!draft.numPedido) html+=sel("fn-numPedido","N\u00famero de pedido");
+  if(!draft.nombreObra) html+=sel("fn-nombreObra","Nombre de obra");
+  if(!draft.pais) html+=sel("fn-pais","Pa\u00eds");
+  if(!draft.ciudad) html+=sel("fn-ciudad","Ciudad");
+  // Always offer to add a ceramic line
+  html+="<div style=\"margin-top:8px\"><div style=\"font-size:11px;color:var(--muted);margin-bottom:4px\">A\u00f1adir l\u00ednea cer\u00e1mica desde el PDF:</div>"+
+    "<select class=\"chunk-sel\" onchange=\"addLineFromChunk(this)\" style=\"background:#0d1117;border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px;padding:5px 8px;width:100%\">"+
+    "<option value=\"\">\u2014 selecciona referencia \u2014</option>"+opts+"</select></div>";
+  area.innerHTML=html;
+}
+
+function applyChunk(sel,targetId){
+  var val=sel.value;if(!val)return;
+  var el=document.getElementById(targetId);
+  if(!el)return;
+  if(el.tagName==="INPUT"||el.tagName==="TEXTAREA"){el.value=val;}
+  else{el.textContent=val;}
+  // Update draft
+  if(targetId==="fn-cliente") draft.cliente=val;
+  if(targetId==="fn-pais") draft.pais=val;
+  if(targetId==="fn-ciudad") draft.ciudad=val;
+  if(targetId==="fn-nombreObra") draft.nombreObra=val;
+}
+
+function addLineFromChunk(sel){
+  var val=sel.value;if(!val)return;
+  if(!draft.lines) draft.lines=[];
+  draft.lines.push({tipo:"",ref:val,m2Pedido:null,piezasPedido:null});
+  renderFormNuevo();
+  sel.value="";
+}
 function registrarPedido(){if(!draft)return;const pais=document.getElementById("fn-pais").value.trim();if(!pais){showToast("Introduce el pais de destino",true);return;}const db=loadData();db.pedidos.push({id:Date.now(),cliente:draft.cliente,numObra:draft.numObra,nombreObra:draft.nombreObra,numPedido:draft.numPedido,fecha:draft.fecha,pais,ciudad:document.getElementById("fn-ciudad").value.trim(),obsGeneral:document.getElementById("fn-obs").value.trim(),lines:draft.lines.map(function(l){return {tipo:l.tipo,ref:l.ref,m2Pedido:l.m2Pedido,piezasPedido:l.piezasPedido,piezasSobrante:0,m2Sobrante:0,obsLinea:""};}),estado:"abierto",fechaCierre:null,pfEnviado:false});saveData(db);showToast("Pedido registrado", false);resetNuevo();updateTabCounts();switchTab("abiertos");}
 function resetNuevo(){draft=null;document.getElementById("dropzone").style.display="block";document.getElementById("form-nuevo").style.display="none";document.getElementById("fileinput").value="";}
 function renderAbiertos(){const db=loadData();const abiertos=db.pedidos.filter(p=>p.estado==="abierto").reverse();const c=document.getElementById("abiertos-container");if(!abiertos.length){c.innerHTML='<div class="empty-state"><i class="ti ti-clock"></i><p>No hay pedidos en produccion</p></div>';return;}c.innerHTML="";abiertos.forEach(p=>{const card=document.createElement("div");card.className="pedido-card";const totalPzs=p.lines.reduce((s,l)=>s+(l.piezasSobrante||0),0);const isEdit=editMode.has(p.id);card.innerHTML='<div class="pedido-head" onclick="toggleCard('+p.id+')"><div class="pedido-status status-open"></div><div class="pedido-head-info"><div class="pedido-head-title">'+( p.cliente||"-")+'</div><div class="pedido-head-sub">'+( p.numObra?p.numObra+" - ":"")+' '+(p.nombreObra||"-")+" - "+p.fecha+'</div></div><div class="pedido-head-badges"><span class="badge badge-pais">'+( p.pais||"-")+'</span>'+(p.pfEnviado?'<span class="badge badge-sent"><i class="ti ti-send" style="font-size:10px"></i> PackFlow</span>':"")+ '<span class="badge badge-open"><i class="ti ti-clock" style="font-size:10px"></i> En produccion</span>'+(totalPzs>0?'<span style="font-size:12px;color:var(--orange);font-weight:600">'+totalPzs+' pzs</span>':"")+ '<i class="ti ti-chevron-down" id="chev-'+p.id+'" style="color:var(--muted);font-size:15px"></i></div></div><div class="pedido-body" id="body-'+p.id+'">'+( p.obsGeneral&&!isEdit?'<div class="obs-block"><strong style="color:var(--text);font-size:11px">Nota:</strong> '+p.obsGeneral+"</div>":"")+( isEdit?'<div class="edit-mode-bar"><span><i class="ti ti-pencil"></i> Modo edicion</span><button class="btn btn-sm btn-edit" onclick="event.stopPropagation();exitEdit('+p.id+')"><i class="ti ti-check"></i> Aplicar cambios</button></div>':"")+'<div class="lines-list" id="lines-'+p.id+'"></div>'+(isEdit?'<div class="add-line-row"><i class="ti ti-plus" style="color:var(--blue);flex-shrink:0"></i><input id="new-ref-'+p.id+'" placeholder="Referencia" style="flex:1"><input id="new-tipo-'+p.id+'" placeholder="Tipo" style="width:110px"><button class="btn btn-sm btn-edit" onclick="event.stopPropagation();addLine('+p.id+')"><i class="ti ti-plus"></i> Anadir</button></div>':"")+'<div class="field"'+(isEdit?' style="display:none"':"")+ '><label>Observacion general</label><textarea id="obs-gen-'+p.id+'" placeholder="Nota...">'+( p.obsGeneral||"")+'</textarea></div><div class="actions-row"><button class="btn btn-danger btn-sm" onclick="event.stopPropagation();borrarPedido('+p.id+')"><i class="ti ti-trash"></i> Eliminar</button>'+(isEdit?"":'<button class="btn btn-sm btn-edit" onclick="event.stopPropagation();enterEdit('+p.id+')"><i class="ti ti-pencil"></i> Editar lineas</button>')+'<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();guardarSobrante('+p.id+')"><i class="ti ti-device-floppy"></i> Guardar sobrante</button><button class="btn btn-success btn-sm" onclick="event.stopPropagation();cerrarPedido('+p.id+')"><i class="ti ti-check"></i> Cerrar pedido</button></div></div>';c.appendChild(card);renderLinesAbierto(p,isEdit);const body=document.getElementById("body-"+p.id);const chev=document.getElementById("chev-"+p.id);if(openCards.has(p.id)){body.classList.add("open");if(chev)chev.style.transform="rotate(180deg)";}});}
