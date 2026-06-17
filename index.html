@@ -225,6 +225,19 @@ function loadData(){try{return JSON.parse(localStorage.getItem(SK)||'{"pedidos":
 function saveData(d){localStorage.setItem(SK,JSON.stringify(d));}
 function ratioFromRef(ref){const m=ref.match(/(\d{2,4})[xX](\d{2,4})/);if(!m)return null;return(parseInt(m[1])/1000)*(parseInt(m[2])/1000);}
 function dimStr(ref){const m=ref.match(/(\d{2,4})[xX](\d{2,4})/);return m?m[1]+"x"+m[2]+" mm":"";}
+function calcPiezas(li){
+  var medEl=document.getElementById("fnl-med-"+li);
+  var m2El=document.getElementById("fnl-m2-"+li);
+  var pzsEl=document.getElementById("fnl-pzs-"+li);
+  if(!medEl||!m2El||!pzsEl)return;
+  var med=medEl.value.trim();
+  var m2=parseFloat(m2El.value);
+  var rm=med.match(/(\d+)[xX](\d+)/);
+  if(rm&&m2>0){
+    var ratio=(parseInt(rm[1])/1000)*(parseInt(rm[2])/1000);
+    if(ratio>0){pzsEl.value=Math.round(m2/ratio);}
+  }
+}
 function encodeHTML(s){return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
 function decomposeRef(ref){
   var parts=ref.trim().split(/\s+/);
@@ -431,7 +444,7 @@ function renderFormNuevo(){
             "<input id=\"fnl-fmt-"+li+"\" class=\"line-obs-inp\" style=\"font-family:monospace;font-weight:600;color:var(--blue)\" value=\""+encodeHTML(dec2.formato||"")+"\" placeholder=\"FFO3/40\">"+
           "</div>"+
           "<div><label style=\"font-size:10px;color:var(--muted);display:block;margin-bottom:3px\">MEDIDAS</label>"+
-            "<input id=\"fnl-med-"+li+"\" class=\"line-obs-inp\" style=\"color:var(--orange)\" value=\""+encodeHTML(dec2.medidas||"")+"\" placeholder=\"390X1200\">"+
+            "<input id=\"fnl-med-"+li+"\" class=\"line-obs-inp\" style=\"color:var(--orange)\" value=\""+encodeHTML(dec2.medidas||"")+"\" placeholder=\"390X1200\" oninput=\"calcPiezas("+li+")\" >"+
           "</div>"+
           "<div><label style=\"font-size:10px;color:var(--muted);display:block;margin-bottom:3px\">COLOR</label>"+
             "<input id=\"fnl-col-"+li+"\" class=\"line-obs-inp\" style=\"color:var(--green)\" value=\""+encodeHTML(dec2.color||"")+"\" placeholder=\"EB3315 B.VOLGA\">"+
@@ -442,10 +455,10 @@ function renderFormNuevo(){
             "<input id=\"fnl-tipo-"+li+"\" class=\"line-obs-inp\" value=\""+encodeHTML(l.tipo||"")+"\" placeholder=\"3 ONDAS\">"+
           "</div>"+
           "<div><label style=\"font-size:10px;color:var(--muted);display:block;margin-bottom:3px\">m² PEDIDO</label>"+
-            "<input id=\"fnl-m2-"+li+"\" class=\"line-obs-inp\" style=\"text-align:right\" value=\""+( l.m2Pedido||"")+"\" placeholder=\"0.00\">"+
+            "<input id=\"fnl-m2-"+li+"\" class=\"line-obs-inp\" style=\"text-align:right\" value=\""+( l.m2Pedido||"")+"\" placeholder=\"0.00\" oninput=\"calcPiezas("+li+")\" >"+
           "</div>"+
-          "<div><label style=\"font-size:10px;color:var(--muted);display:block;margin-bottom:3px\">PIEZAS PEDIDO</label>"+
-            "<input id=\"fnl-pzs-"+li+"\" class=\"line-obs-inp\" style=\"text-align:right\" value=\""+( l.piezasPedido||"")+"\" placeholder=\"0\">"+
+          "<div><label style=\"font-size:10px;color:var(--muted);display:block;margin-bottom:3px\">PIEZAS PEDIDO <span style=\"color:var(--muted);font-weight:400\">(auto)</span></label>"+
+            "<input id=\"fnl-pzs-"+li+"\" class=\"line-obs-inp\" style=\"text-align:right;color:var(--muted)\" value=\""+( l.piezasPedido||"")+"\" placeholder=\"calculado\" readonly>"+
           "</div>"+
         "</div>";
       lc.appendChild(div);
