@@ -354,13 +354,13 @@ function parsePedido(text){
     if(tm){pendingTipo=tm[1].trim();used[i]=1;continue;}
 
     // FS/FK = product line, ALWAYS
-    if(/^F[SKFBskfb]\d/i.test(c)){
+    if(/^F[KSFBksfb]/i.test(c)){
       var ref=c.trim();
       var tipo=pendingTipo||"";
       pendingTipo="";
       var m2val=null,pzsval=null;
       for(var j=i+1;j<Math.min(i+12,chunks.length);j++){
-        if(/^F[SKFBskfb]\d/i.test(chunks[j])) break;
+        if(/^F[KSFBksfb]/i.test(chunks[j])) break;
         if(/^M2$/i.test(chunks[j])&&j>0){
           var prev=chunks[j-1];
           var nm=prev.match(/^([\d]+[,\.][\d]+)/);
@@ -386,7 +386,7 @@ function parsePedido(text){
       var ref=c.trim();var tipo=pendingTipo;pendingTipo="";
       var m2val=null,pzsval=null;
       for(var j=i+1;j<Math.min(i+12,chunks.length);j++){
-        if(/^F[SKFBskfb]\d/i.test(chunks[j])) break;
+        if(/^F[KSFBksfb]/i.test(chunks[j])) break;
         if(/^M2$/i.test(chunks[j])&&j>0){
           var prev=chunks[j-1];var nm=prev.match(/^([\d]+[,\.][\d]+)/);
           if(nm){var raw=nm[1].replace(",",".");m2val=parseFloat(raw);}
