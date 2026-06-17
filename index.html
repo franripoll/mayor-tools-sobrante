@@ -238,6 +238,12 @@ input[type=file]{display:none}
       <i class="ti ti-chevron-down" id="chev-refs" style="color:var(--muted);font-size:14px"></i>
     </div>
     <div class="stats-body" id="body-refs">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+        <input id="fref-fmt" class="hist-filter" placeholder="Formato..." oninput="filterRefStats()" style="width:140px">
+        <input id="fref-med" class="hist-filter" placeholder="Medidas..." oninput="filterRefStats()" style="width:140px">
+        <input id="fref-col" class="hist-filter" placeholder="Color..." oninput="filterRefStats()" style="flex:1;min-width:140px">
+        <button class="btn btn-ghost btn-sm" onclick="clearRefFilters()" style="font-size:11px"><i class="ti ti-x"></i> Limpiar</button>
+      </div>
       <div id="ref-stats-container"></div>
     </div>
   </div>
@@ -828,6 +834,8 @@ var _refSortCol="m2Sob", _refSortDir=-1;
 function renderStats(filtered, allCerrados){
   renderRankings(filtered);
   renderRefStats(filtered);
+  // Re-apply text filters after resort
+  filterRefStats();
 }
 
 function renderRankings(data){
@@ -873,11 +881,33 @@ function renderRankings(data){
   }).join("");
 }
 
+var _refDataCache=[];
+
+function filterRefStats(){
+  var fmt=(document.getElementById("fref-fmt")||{value:""}).value.toLowerCase().trim();
+  var med=(document.getElementById("fref-med")||{value:""}).value.toLowerCase().trim();
+  var col=(document.getElementById("fref-col")||{value:""}).value.toLowerCase().trim();
+  var filtered=_refDataCache.filter(function(r){
+    return (!fmt||r.formato.toLowerCase().includes(fmt))&&
+           (!med||r.medidas.toLowerCase().includes(med))&&
+           (!col||r.color.toLowerCase().includes(col));
+  });
+  _renderRefTable(filtered);
+}
+
+function clearRefFilters(){
+  var f=document.getElementById("fref-fmt");if(f)f.value="";
+  var m=document.getElementById("fref-med");if(m)m.value="";
+  var c=document.getElementById("fref-col");if(c)c.value="";
+  filterRefStats();
+}
+
 function renderRefStats(data){
+  // Build full dataset and cache it
   var rMap={};
   data.forEach(function(p){
     p.lines.forEach(function(l){
-      var fmt=l.formato||"—", med=l.medidas||"—", col=l.color||"—";
+      var fmt=l.formato||"—",med=l.medidas||"—",col=l.color||"—";
       var k=fmt+"|"+med+"|"+col;
       if(!rMap[k])rMap[k]={formato:fmt,medidas:med,color:col,m2ped:0,m2sob:0,pzsSob:0,pedidos:new Set()};
       rMap[k].m2ped+=l.m2Pedido||0;
@@ -886,8 +916,13 @@ function renderRefStats(data){
       rMap[k].pedidos.add(p.id);
     });
   });
-  var list=Object.values(rMap);
-  // Sort
+  _refDataCache=Object.values(rMap);
+  // Apply any active filters
+  filterRefStats();
+}
+
+function _renderRefTable(list){
+  // Apply sort
   list.sort(function(a,b){
     var av=_refSortCol==="m2Sob"?a.m2sob:_refSortCol==="m2Ped"?a.m2ped:_refSortCol==="pct"?(a.m2ped>0?a.m2sob/a.m2ped:0):a.pedidos.size;
     var bv=_refSortCol==="m2Sob"?b.m2sob:_refSortCol==="m2Ped"?b.m2ped:_refSortCol==="pct"?(b.m2ped>0?b.m2sob/b.m2ped:0):b.pedidos.size;
@@ -896,20 +931,20 @@ function renderRefStats(data){
   var maxSob=list.length>0?Math.max.apply(null,list.map(function(r){return r.m2sob;})):1;
   var el=document.getElementById("ref-stats-container");
   if(!el)return;
-  if(!list.length){el.innerHTML='<p style="font-size:12px;color:var(--muted)">Sin datos</p>';return;}
+  if(!list.length){el.innerHTML='<p style="font-size:12px;color:var(--muted)">Sin resultados</p>';return;}
 
   function sortTh(col,label){
     var active=_refSortCol===col;
     var style=active?"color:var(--blue)":"";
-    var icon=_refSortDir===-1?"↓":"↑";
+    var icon=_refSortDir===-1?"\u2193":"\u2191";
     var cls="sort-icon"+(active?" active":"");
-    return "<th onclick=\"sortRefs('"+col+"')\" style=\""+style+"\">"+label+"<span class=\""+cls+"\">"+icon+"</span></th>";
+    return "<th onclick=\"sortRefs('"+col+"')\" style=\"cursor:pointer;"+style+"\">"+label+"<span class=\""+cls+"\">"+icon+"</span></th>";
   }
 
   el.innerHTML='<table class="ref-table"><thead><tr>'+
     '<th>Formato</th><th>Medidas</th><th>Color</th>'+
-    sortTh("m2Ped","m² ped.")+
-    sortTh("m2Sob","m² sob.")+
+    sortTh("m2Ped","m\u00b2 ped.")+
+    sortTh("m2Sob","m\u00b2 sob.")+
     sortTh("pct","% sob.")+
     sortTh("pedidos","Pedidos")+
   '</tr></thead><tbody>'+
@@ -921,8 +956,8 @@ function renderRefStats(data){
       '<td><span style="background:rgba(88,166,255,.15);color:var(--blue);border-radius:4px;padding:2px 7px;font-size:11px;font-weight:600;font-family:monospace">'+r.formato+'</span></td>'+
       '<td><span style="background:rgba(240,136,62,.12);color:var(--orange);border-radius:4px;padding:2px 7px;font-size:11px">'+r.medidas+'</span></td>'+
       '<td style="font-size:11px;color:var(--muted)">'+r.color+'</td>'+
-      '<td style="color:var(--muted)">'+r.m2ped.toFixed(1)+' m²</td>'+
-      '<td><div class="pct-bar"><div class="pct-fill" style="width:'+barW+'px"></div><span style="color:var(--orange)">'+r.m2sob.toFixed(1)+' m²</span></div></td>'+
+      '<td style="color:var(--muted)">'+r.m2ped.toFixed(1)+' m\u00b2</td>'+
+      '<td><div class="pct-bar"><div class="pct-fill" style="width:'+barW+'px"></div><span style="color:var(--orange)">'+r.m2sob.toFixed(1)+' m\u00b2</span></div></td>'+
       '<td><span style="color:'+pctColor+';font-weight:600">'+pct.toFixed(1)+'%</span></td>'+
       '<td style="color:var(--muted)">'+r.pedidos.size+'</td>'+
     '</tr>';
