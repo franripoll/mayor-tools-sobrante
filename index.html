@@ -225,6 +225,7 @@ function loadData(){try{return JSON.parse(localStorage.getItem(SK)||'{"pedidos":
 function saveData(d){localStorage.setItem(SK,JSON.stringify(d));}
 function ratioFromRef(ref){const m=ref.match(/(\d{2,4})[xX](\d{2,4})/);if(!m)return null;return(parseInt(m[1])/1000)*(parseInt(m[2])/1000);}
 function dimStr(ref){const m=ref.match(/(\d{2,4})[xX](\d{2,4})/);return m?m[1]+"x"+m[2]+" mm":"";}
+function encodeHTML(s){return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
 function decomposeRef(ref){
   var parts=ref.trim().split(/\s+/);
   var formato="",medidas="",color="",medIdx=-1;
@@ -413,9 +414,35 @@ function renderFormNuevo(){
   if(!draft.lines.length){
     lc.innerHTML="<p style=\"font-size:12px;color:var(--muted)\">No se detectaron lineas ceramicas.</p>";
   } else {
-    draft.lines.forEach(function(l){
-      var ratio=ratioFromRef(l.ref);var ds=dimStr(l.ref);var div=document.createElement("div");div.className="line-row";
-      div.innerHTML="<div class=\"line-info\"><div class=\"line-ref\">"+l.ref+"</div><div class=\"line-sub\">"+l.tipo+"</div><div class=\"line-pedido\">"+(l.m2Pedido?l.m2Pedido.toFixed(2)+" m2":"")+"\u00a0"+(l.piezasPedido?"\u00b7 "+l.piezasPedido+" pzs":"")+"</div>"+(ds&&ratio?"<div class=\"line-dims\">"+ds+" \u00b7 "+ratio.toFixed(4)+" m2/pza</div>":"")+"</div>";
+    draft.lines.forEach(function(l,li){
+      var dec2=decomposeRef(l.ref);
+      var ratio=ratioFromRef(l.ref);
+      var div=document.createElement("div");
+      div.className="line-row";
+      div.style.cssText="flex-direction:column;gap:8px;padding:12px";
+      div.innerHTML=
+        "<div style=\"display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:4px\">"+
+          "<div><label style=\"font-size:10px;color:var(--muted);display:block;margin-bottom:3px\">FORMATO</label>"+
+            "<input id=\"fnl-fmt-"+li+"\" class=\"line-obs-inp\" style=\"font-family:monospace;font-weight:600;color:var(--blue)\" value=\""+encodeHTML(dec2.formato||"")+"\" placeholder=\"FFO3/40\">"+
+          "</div>"+
+          "<div><label style=\"font-size:10px;color:var(--muted);display:block;margin-bottom:3px\">MEDIDAS</label>"+
+            "<input id=\"fnl-med-"+li+"\" class=\"line-obs-inp\" style=\"color:var(--orange)\" value=\""+encodeHTML(dec2.medidas||"")+"\" placeholder=\"390X1200\">"+
+          "</div>"+
+          "<div><label style=\"font-size:10px;color:var(--muted);display:block;margin-bottom:3px\">COLOR</label>"+
+            "<input id=\"fnl-col-"+li+"\" class=\"line-obs-inp\" style=\"color:var(--green)\" value=\""+encodeHTML(dec2.color||"")+"\" placeholder=\"EB3315 B.VOLGA\">"+
+          "</div>"+
+        "</div>"+
+        "<div style=\"display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px\">"+
+          "<div><label style=\"font-size:10px;color:var(--muted);display:block;margin-bottom:3px\">TIPO</label>"+
+            "<input id=\"fnl-tipo-"+li+"\" class=\"line-obs-inp\" value=\""+encodeHTML(l.tipo||"")+"\" placeholder=\"3 ONDAS\">"+
+          "</div>"+
+          "<div><label style=\"font-size:10px;color:var(--muted);display:block;margin-bottom:3px\">m² PEDIDO</label>"+
+            "<input id=\"fnl-m2-"+li+"\" class=\"line-obs-inp\" style=\"text-align:right\" value=\""+( l.m2Pedido||"")+"\" placeholder=\"0.00\">"+
+          "</div>"+
+          "<div><label style=\"font-size:10px;color:var(--muted);display:block;margin-bottom:3px\">PIEZAS PEDIDO</label>"+
+            "<input id=\"fnl-pzs-"+li+"\" class=\"line-obs-inp\" style=\"text-align:right\" value=\""+( l.piezasPedido||"")+"\" placeholder=\"0\">"+
+          "</div>"+
+        "</div>";
       lc.appendChild(div);
     });
   }
