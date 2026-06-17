@@ -170,7 +170,10 @@ input[type=file]{display:none}
         <div class="grid-3">
           <div class="field"><label>Cliente</label><div class="field-val" id="fn-cliente">-</div></div>
           <div class="field"><label>Obra</label><div class="field-val" id="fn-obra">-</div></div>
-          <div class="field"><label style="font-size:13px;font-weight:600">Nº Pedido</label><div class="field-val" id="fn-pedido" style="font-size:16px;font-weight:700;color:var(--blue)">-</div></div>
+          <div class="field">
+            <label style="font-size:11px;font-weight:600;color:var(--muted)">Nº PEDIDO</label>
+            <input id="fn-pedido" style="font-size:16px;font-weight:700;color:var(--blue);background:#0d1117;border:1px solid var(--border);border-radius:6px;padding:6px 10px;width:100%;font-family:monospace" placeholder="21-XXXXXX / 51-XXXXXX">
+          </div>
         </div>
         <div style="margin-top:-6px;margin-bottom:6px"><span style="font-size:11px;color:var(--muted)">Fecha: </span><span id="fn-fecha" style="font-size:11px;color:var(--muted)">-</span></div>
         <div class="grid-2">
@@ -531,7 +534,7 @@ function renderFormNuevo(){
   if(!draft)return;
   document.getElementById("fn-cliente").textContent=draft.cliente||"(no detectado)";
   document.getElementById("fn-obra").textContent=draft.numObra?(draft.numObra+" - "+draft.nombreObra):(draft.nombreObra||"-");
-  document.getElementById("fn-pedido").textContent=draft.numPedido||"-";
+  var _fp=document.getElementById("fn-pedido");if(_fp)_fp.value=draft.numPedido||"";
   var fechaEl=document.getElementById("fn-fecha");if(fechaEl)fechaEl.textContent=draft.fecha||"-";
   document.getElementById("fn-pais").value=draft.pais||"";
   document.getElementById("fn-ciudad").value=draft.ciudad||"";
@@ -626,7 +629,7 @@ function addLineFromChunk(sel){
   renderFormNuevo();
   sel.value="";
 }
-function registrarPedido(){if(!draft)return;const pais=document.getElementById("fn-pais").value.trim();if(!pais){showToast("Introduce el pais de destino",true);return;}const db=loadData();db.pedidos.push({id:Date.now(),cliente:draft.cliente,numObra:draft.numObra,nombreObra:draft.nombreObra,numPedido:draft.numPedido,fecha:draft.fecha,pais,ciudad:document.getElementById("fn-ciudad").value.trim(),obsGeneral:document.getElementById("fn-obs").value.trim(),lines:draft.lines.map(function(l,li){
+function registrarPedido(){if(!draft)return;const pais=document.getElementById("fn-pais").value.trim();if(!pais){showToast("Introduce el pais de destino",true);return;}const db=loadData();db.pedidos.push({id:Date.now(),cliente:draft.cliente,numObra:draft.numObra,nombreObra:draft.nombreObra,numPedido:(document.getElementById("fn-pedido")||{value:draft.numPedido||""}).value.trim()||draft.numPedido||"",fecha:draft.fecha,pais,ciudad:document.getElementById("fn-ciudad").value.trim(),obsGeneral:document.getElementById("fn-obs").value.trim(),lines:draft.lines.map(function(l,li){
       // Always read from inputs — user may have edited them
       var fmtEl=document.getElementById("fnl-fmt-"+li);
       var medEl=document.getElementById("fnl-med-"+li);
