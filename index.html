@@ -255,7 +255,28 @@ function decomposeRef(ref){
 async function pfGet(t,p){if(p===undefined)p="";const r=await fetch(PF_URL+"/rest/v1/"+t+"?"+p,{headers:{"apikey":PF_KEY,"Authorization":"Bearer "+PF_KEY}});if(!r.ok)throw new Error(await r.text());return r.json();}
 async function pfPost(t,b){const r=await fetch(PF_URL+"/rest/v1/"+t,{method:"POST",headers:{"apikey":PF_KEY,"Authorization":"Bearer "+PF_KEY,"Content-Type":"application/json","Prefer":"return=representation"},body:JSON.stringify(b)});if(!r.ok)throw new Error(await r.text());return r.json();}
 function handleDrop(e){e.preventDefault();document.getElementById("dropzone").classList.remove("over");const f=e.dataTransfer.files[0];if(f&&f.type==="application/pdf")handleFile(f);}
-function handleFile(file){if(!file)return;const r=new FileReader();r.onload=async(ev)=>{try{const pdf=await pdfjsLib.getDocument({data:new Uint8Array(ev.target.result)}).promise;let chunks=[];for(let i=1;i<=pdf.numPages;i++){const pg=await pdf.getPage(i);const ct=await pg.getTextContent();ct.items.forEach(function(it){var s=it.str.trim();if(s.length>0)chunks.push(s);});}parsePedido(chunks.join("\n"));}catch(err){showToast("Error leyendo PDF",true);}};r.readAsArrayBuffer(file);}
+function handleFile(file){
+  if(!file)return;
+  // Read as base64 for storage
+  var b64reader=new FileReader();
+  b64reader.onload=function(e){
+    var b64=e.target.result.split(",")[1];
+    if(draft)draft._pdfBase64=b64;
+    else window._pendingPdfB64=b64;
+  };
+  b64reader.readAsDataURL(file);
+  // Read as ArrayBuffer for PDF.js
+  var r=new FileReader();
+  r.onload=async(ev)=>{try{
+    var chunks=[];
+    var pdf=await pdfjsLib.getDocument({data:new Uint8Array(ev.target.result)}).promise;
+    for(var i=1;i<=pdf.numPages;i++){var pg=await pdf.getPage(i);var ct=await pg.getTextContent();ct.items.forEach(function(it){var s=it.str.trim();if(s.length>0)chunks.push(s);});}
+    parsePedido(chunks.join("\n"));
+    // Attach base64 after draft is set
+    setTimeout(function(){if(draft&&window._pendingPdfB64){draft._pdfBase64=window._pendingPdfB64;window._pendingPdfB64=null;}},100);
+  }catch(err){showToast("Error leyendo PDF",true);}};
+  r.readAsArrayBuffer(file);
+}
 function parsePedido(text){
   try{
   console.log("CHUNKS:",JSON.stringify(text.split("\n").filter(function(c){return c.trim().length>1;}).slice(0,30)));
@@ -549,7 +570,8 @@ function addLineFromChunk(sel){
 }
 function registrarPedido(){if(!draft)return;const pais=document.getElementById("fn-pais").value.trim();if(!pais){showToast("Introduce el pais de destino",true);return;}const db=loadData();db.pedidos.push({id:Date.now(),cliente:draft.cliente,numObra:draft.numObra,nombreObra:draft.nombreObra,numPedido:draft.numPedido,fecha:draft.fecha,pais,ciudad:document.getElementById("fn-ciudad").value.trim(),obsGeneral:document.getElementById("fn-obs").value.trim(),lines:draft.lines.map(function(l){return {tipo:l.tipo,ref:l.ref,m2Pedido:l.m2Pedido,piezasPedido:l.piezasPedido,piezasSobrante:0,m2Sobrante:0,obsLinea:""};}),estado:"abierto",fechaCierre:null,pfEnviado:false});saveData(db);showToast("Pedido registrado", false);resetNuevo();updateTabCounts();switchTab("abiertos");}
 function resetNuevo(){draft=null;document.getElementById("dropzone").style.display="block";document.getElementById("form-nuevo").style.display="none";document.getElementById("fileinput").value="";}
-function renderAbiertos(){const db=loadData();const abiertos=db.pedidos.filter(p=>p.estado==="abierto").reverse();const c=document.getElementById("abiertos-container");if(!abiertos.length){c.innerHTML='<div class="empty-state"><i class="ti ti-clock"></i><p>No hay pedidos en produccion</p></div>';return;}c.innerHTML="";abiertos.forEach(p=>{const card=document.createElement("div");card.className="pedido-card";const totalPzs=p.lines.reduce((s,l)=>s+(l.piezasSobrante||0),0);const isEdit=editMode.has(p.id);card.innerHTML='<div class="pedido-head" onclick="toggleCard('+p.id+')"><div class="pedido-status status-open"></div><div class="pedido-head-info"><div class="pedido-head-title">'+( p.cliente||"-")+'</div><div class="pedido-head-sub">'+( p.numObra?p.numObra+" - ":"")+' '+(p.nombreObra||"-")+" - "+p.fecha+'</div></div><div class="pedido-head-badges"><span class="badge badge-pais">'+( p.pais||"-")+'</span>'+(p.pfEnviado?'<span class="badge badge-sent"><i class="ti ti-send" style="font-size:10px"></i> PackFlow</span>':"")+ '<span class="badge badge-open"><i class="ti ti-clock" style="font-size:10px"></i> En produccion</span>'+(totalPzs>0?'<span style="font-size:12px;color:var(--orange);font-weight:600">'+totalPzs+' pzs</span>':"")+ '<i class="ti ti-chevron-down" id="chev-'+p.id+'" style="color:var(--muted);font-size:15px"></i></div></div><div class="pedido-body" id="body-'+p.id+'">'+( p.obsGeneral&&!isEdit?'<div class="obs-block"><strong style="color:var(--text);font-size:11px">Nota:</strong> '+p.obsGeneral+"</div>":"")+( isEdit?'<div class="edit-mode-bar"><span><i class="ti ti-pencil"></i> Modo edicion</span><button class="btn btn-sm btn-edit" onclick="event.stopPropagation();exitEdit('+p.id+')"><i class="ti ti-check"></i> Aplicar cambios</button></div>':"")+'<div class="lines-list" id="lines-'+p.id+'"></div>'+(isEdit?'<div class="add-line-row"><i class="ti ti-plus" style="color:var(--blue);flex-shrink:0"></i><input id="new-ref-'+p.id+'" placeholder="Referencia" style="flex:1"><input id="new-tipo-'+p.id+'" placeholder="Tipo" style="width:110px"><button class="btn btn-sm btn-edit" onclick="event.stopPropagation();addLine('+p.id+')"><i class="ti ti-plus"></i> Anadir</button></div>':"")+'<div class="field"'+(isEdit?' style="display:none"':"")+ '><label>Observacion general</label><textarea id="obs-gen-'+p.id+'" placeholder="Nota...">'+( p.obsGeneral||"")+'</textarea></div><div class="actions-row"><button class="btn btn-danger btn-sm" onclick="event.stopPropagation();borrarPedido('+p.id+')"><i class="ti ti-trash"></i> Eliminar</button>'+(isEdit?"":'<button class="btn btn-sm btn-edit" onclick="event.stopPropagation();enterEdit('+p.id+')"><i class="ti ti-pencil"></i> Editar lineas</button>')+'<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();guardarSobrante('+p.id+')"><i class="ti ti-device-floppy"></i> Guardar sobrante</button><button class="btn btn-success btn-sm" onclick="event.stopPropagation();cerrarPedido('+p.id+')"><i class="ti ti-check"></i> Cerrar pedido</button></div></div>';c.appendChild(card);renderLinesAbierto(p,isEdit);const body=document.getElementById("body-"+p.id);const chev=document.getElementById("chev-"+p.id);if(openCards.has(p.id)){body.classList.add("open");if(chev)chev.style.transform="rotate(180deg)";}});}
+function renderAbiertos(){const db=loadData();const abiertos=db.pedidos.filter(p=>p.estado==="abierto").reverse();const c=document.getElementById("abiertos-container");if(!abiertos.length){c.innerHTML='<div class="empty-state"><i class="ti ti-clock"></i><p>No hay pedidos en produccion</p></div>';return;}c.innerHTML="";abiertos.forEach(p=>{const card=document.createElement("div");card.className="pedido-card";const totalPzs=p.lines.reduce((s,l)=>s+(l.piezasSobrante||0),0);const isEdit=editMode.has(p.id);card.innerHTML='<div class="pedido-head" onclick="toggleCard('+p.id+')"><div class="pedido-status status-open"></div><div class="pedido-head-info"><div class="pedido-head-title">'+( p.cliente||"-")+'</div><div class="pedido-head-sub">'+( p.numObra?p.numObra+" - ":"")+' '+(p.nombreObra||"-")+" - "+p.fecha+'</div></div><div class="pedido-head-badges"><span class="badge badge-pais">'+( p.pais||"-")+'</span>'+(p.pfEnviado?'<span class="badge badge-sent"><i class="ti ti-send" style="font-size:10px"></i> PackFlow</span>':"")+ '<span class="badge badge-open"><i class="ti ti-clock" style="font-size:10px"></i> En produccion</span>'+(totalPzs>0?'<span style="font-size:12px;color:var(--orange);font-weight:600">'+totalPzs+' pzs</span>':"")+ '<i class="ti ti-chevron-down" id="chev-'+p.id+'" style="color:var(--muted);font-size:15px"></i></div></div><div class="pedido-body" id="body-'+p.id+'">'+( p.obsGeneral&&!isEdit?'<div class="obs-block"><strong style="color:var(--text);font-size:11px">Nota:</strong> '+p.obsGeneral+"</div>":"")+( isEdit?'<div class="edit-mode-bar"><span><i class="ti ti-pencil"></i> Modo edicion</span><button class="btn btn-sm btn-edit" onclick="event.stopPropagation();exitEdit('+p.id+')"><i class="ti ti-check"></i> Aplicar cambios</button></div>':"")+'<div class="lines-list" id="lines-'+p.id+'"></div>'+(isEdit?'<div class="add-line-row"><i class="ti ti-plus" style="color:var(--blue);flex-shrink:0"></i><input id="new-ref-'+p.id+'" placeholder="Referencia" style="flex:1"><input id="new-tipo-'+p.id+'" placeholder="Tipo" style="width:110px"><button class="btn btn-sm btn-edit" onclick="event.stopPropagation();addLine('+p.id+')"><i class="ti ti-plus"></i> Anadir</button></div>':"")+'<div class="field"'+(isEdit?' style="display:none"':"")+ '><label>Observacion general</label><textarea id="obs-gen-'+p.id+'" placeholder="Nota...">'+( p.obsGeneral||"")+'</textarea></div><div class="actions-row"><button class="btn btn-danger btn-sm" onclick="event.stopPropagation();borrarPedido('+p.id+')"><i class="ti ti-trash"></i> Eliminar</button>'+(isEdit?"":'<button class="btn btn-sm btn-edit" onclick="event.stopPropagation();enterEdit('+p.id+')"><i class="ti ti-pencil"></i> Editar lineas</button>')+'<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();viewPDF('+p.id+')"><i class="ti ti-file-type-pdf"></i> Ver PDF</button>'+
+          '<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();guardarSobrante('+p.id+')"><i class="ti ti-device-floppy"></i> Guardar sobrante</button><button class="btn btn-success btn-sm" onclick="event.stopPropagation();cerrarPedido('+p.id+')"><i class="ti ti-check"></i> Cerrar pedido</button></div></div>';c.appendChild(card);renderLinesAbierto(p,isEdit);const body=document.getElementById("body-"+p.id);const chev=document.getElementById("chev-"+p.id);if(openCards.has(p.id)){body.classList.add("open");if(chev)chev.style.transform="rotate(180deg)";}});}
 function renderLinesAbierto(p,isEdit){const lc=document.getElementById("lines-"+p.id);if(!lc)return;lc.innerHTML="";if(!p.lines.length){lc.innerHTML='<p style="font-size:12px;color:var(--muted)">Sin lineas.</p>';return;}p.lines.forEach((l,i)=>{const ratio=ratioFromRef(l.ref);const ds=dimStr(l.ref);const div=document.createElement("div");if(isEdit){div.className="line-row-edit";div.innerHTML='<div style="flex:1;min-width:0"><input class="edit-ref-input" id="eref-'+p.id+"-"+i+'" value="'+l.ref+'" placeholder="Referencia" oninput="updateDimHint('+p.id+","+i+')"><div class="edit-dim-hint" id="dimhint-'+p.id+"-"+i+'">'+( ds&&ratio?ds+" - "+ratio.toFixed(4)+" m2/pza":ds||"sin dimensiones")+'</div></div><input class="edit-tipo-input" id="etipo-'+p.id+"-"+i+'" value="'+l.tipo+'" placeholder="Tipo"><button class="btn btn-danger btn-xs" onclick="event.stopPropagation();deleteLine('+p.id+","+i+')"><i class="ti ti-trash"></i></button>';}else{div.className="line-row";div.innerHTML='<div class="line-info"><div class="line-ref">'+l.ref+'</div><div class="line-sub">'+l.tipo+'</div><div class="line-pedido">'+( l.m2Pedido?l.m2Pedido.toFixed(2)+" m2 pedido":"")+' '+(l.piezasPedido?"- "+l.piezasPedido+" pzs":"")+'</div>'+(ds&&ratio?'<div class="line-dims">'+ds+" - "+ratio.toFixed(4)+' m2/pza</div>':"")+'<input class="line-obs-inp" id="obs-l-'+p.id+"-"+i+'" placeholder="Observacion de esta linea..." value="'+( l.obsLinea||"")+'"></div><div class="line-sob"><input type="number" class="pzs-input" id="pzs-'+p.id+"-"+i+'" min="0" step="1" value="'+( l.piezasSobrante||"")+'" placeholder="0" oninput="previewM2('+p.id+","+i+","+(ratio||0)+')"><div><div style="font-size:11px;color:var(--muted)">pzs</div><div class="m2-tag" id="m2tag-'+p.id+"-"+i+'">'+( l.m2Sobrante>0?l.m2Sobrante.toFixed(2)+" m2":"_")+'</div><div class="ratio-hint">'+( ratio?ratio.toFixed(4)+" m2/pza":"")+'</div></div></div>';}lc.appendChild(div);});}
 function updateDimHint(pid,li){const ref=(document.getElementById("eref-"+pid+"-"+li)||{value:""}).value||"";const el=document.getElementById("dimhint-"+pid+"-"+li);if(!el)return;const ratio=ratioFromRef(ref);const ds=dimStr(ref);el.textContent=ds&&ratio?ds+" - "+ratio.toFixed(4)+" m2/pza":ds||"sin dimensiones";el.style.color=ratio?"var(--blue)":"var(--muted)";}
 function enterEdit(pid){editMode.add(pid);openCards.add(pid);renderAbiertos();}
@@ -559,7 +581,7 @@ function addLine(pid){const ref=(document.getElementById("new-ref-"+pid)||{value
 function previewM2(pid,li,ratio){const pzs=parseInt((document.getElementById("pzs-"+pid+"-"+li)||{value:""}).value||0);const el=document.getElementById("m2tag-"+pid+"-"+li);if(!el)return;if(pzs>0&&ratio>0){el.textContent=(pzs*ratio).toFixed(2)+" m2";el.style.opacity="1";}else{el.textContent="-";el.style.opacity=".4";}}
 function guardarSobrante(pid){const db=loadData();const p=db.pedidos.find(x=>x.id===pid);if(!p)return;p.obsGeneral=(document.getElementById("obs-gen-"+pid)||{value:""}).value.trim()||p.obsGeneral;p.lines.forEach((l,i)=>{const pzs=parseInt((document.getElementById("pzs-"+pid+"-"+i)||{value:""}).value||0);const ratio=ratioFromRef(l.ref);l.piezasSobrante=isNaN(pzs)?0:pzs;l.m2Sobrante=ratio&&pzs>0?parseFloat((pzs*ratio).toFixed(4)):0;l.obsLinea=(document.getElementById("obs-l-"+pid+"-"+i)||{value:""}).value.trim()||"";});saveData(db);showToast("Sobrante guardado", false);renderAbiertos();}
 function cerrarPedido(pid){guardarSobrante(pid);const db=loadData();const p=db.pedidos.find(x=>x.id===pid);if(!p)return;p.estado="cerrado";p.fechaCierre=new Date().toLocaleDateString("es-ES");saveData(db);editMode.delete(pid);openCards.delete(pid);showToast("Pedido cerrado", false);updateTabCounts();renderAbiertos();}
-function borrarPedido(pid){const db=loadData();db.pedidos=db.pedidos.filter(x=>x.id!==pid);saveData(db);editMode.delete(pid);openCards.delete(pid);updateTabCounts();renderAbiertos();}
+function borrarPedido(pid){const db=loadData();db.pedidos=db.pedidos.filter(x=>x.id!==pid);saveData(db);editMode.delete(pid);openCards.delete(pid);deletePDF(pid).catch(function(){});updateTabCounts();renderAbiertos();}
 function toggleCard(pid){const body=document.getElementById("body-"+pid);const chev=document.getElementById("chev-"+pid);if(!body)return;const open=body.classList.toggle("open");if(chev)chev.style.transform=open?"rotate(180deg)":"";if(open)openCards.add(pid);else openCards.delete(pid);}
 async function renderPackflow(){const db=loadData();const sel=document.getElementById("pf-select-pedido");const prev=sel.value;sel.innerHTML='<option value="">- elige un pedido -</option>';db.pedidos.forEach(p=>{const o=document.createElement("option");o.value=p.id;o.textContent=(p.numPedido||"Sin num")+" - "+(p.nombreObra||p.cliente||"-")+" - "+p.fecha+(p.pfEnviado?" (enviado)":"");if(String(p.id)===prev)o.selected=true;sel.appendChild(o);});document.getElementById("pf-pedido-area").style.display="none";const st=document.getElementById("pf-refs-status");st.innerHTML='<div class="pf-status-bar pf-status-loading"><div class="spinner"></div> Conectando con PackFlow...</div>';try{pfRefs=await pfGet("refs","select=id,nombre,articulo,proddia,piezas_pale,piezas_caja,cajas_pale&order=nombre");st.innerHTML='<div class="pf-status-bar pf-status-ok"><i class="ti ti-check"></i> '+pfRefs.length+' referencias cargadas de PackFlow</div>';}catch(e){pfRefs=[];st.innerHTML='<div class="pf-status-bar pf-status-err"><i class="ti ti-alert-triangle"></i> No se pudo conectar: '+e.message+'</div>';}if(prev)renderPFPedido();}
 function renderPFPedido(){const db=loadData();const pid=document.getElementById("pf-select-pedido").value;const area=document.getElementById("pf-pedido-area");if(!pid){area.style.display="none";return;}const p=db.pedidos.find(x=>String(x.id)===String(pid));if(!p){area.style.display="none";return;}area.style.display="flex";area.innerHTML="";const head=document.createElement("div");head.className="card";head.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><div><div style="font-size:13px;font-weight:600;color:var(--text)">'+( p.cliente||"-")+'</div><div style="font-size:11px;color:var(--muted);margin-top:2px">'+( p.numObra?p.numObra+" - ":"")+' '+(p.nombreObra||"-")+" - "+p.fecha+" - "+p.pais+'</div></div>'+(p.pfEnviado?'<span class="badge badge-sent"><i class="ti ti-check" style="font-size:10px"></i> Ya enviado a PackFlow</span>':"")+'</div>';area.appendChild(head);p.lines.forEach((l,i)=>{const card=document.createElement("div");card.className="card";const refMatch=pfRefs.find(r=>r.nombre&&l.ref&&(r.nombre.toLowerCase().includes(l.ref.toLowerCase().split(" ")[0])||l.ref.toLowerCase().includes((r.articulo||"").toLowerCase())));const opts=pfRefs.map(r=>'<option value="'+r.id+'" '+(refMatch&&r.id===refMatch.id?"selected":"")+'>'+r.nombre+(r.articulo?' ('+r.articulo+")":"")+'</option>').join("");const hoy=new Date().toISOString().split("T")[0];card.innerHTML='<div style="display:flex;align-items:flex-start;gap:10px"><div><div style="font-size:12px;font-weight:600;color:var(--text);font-family:monospace">'+l.ref+'</div><div style="font-size:11px;color:var(--muted);margin-top:2px">'+l.tipo+(l.m2Pedido?' - '+l.m2Pedido.toFixed(2)+' m2':"")+" "+(l.piezasPedido?' - '+l.piezasPedido+' pzs':"")+'</div></div></div><div class="field"><label>Referencia en PackFlow</label><select id="pf-ref-'+p.id+"-"+i+'" onchange="updatePFCalc('+p.id+","+i+')" style="background:#0d1117;border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;padding:6px 9px;width:100%"><option value="">- sin referencia -</option>'+opts+'</select></div><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><label style="font-size:11px;color:var(--muted);white-space:nowrap">Inicio produccion</label><input type="date" id="pf-inicio-'+p.id+"-"+i+'" value="'+hoy+'" style="background:#0d1117;border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;padding:5px 9px"></div><div id="pf-calc-'+p.id+"-"+i+'" style="font-size:12px;color:var(--muted)"></div><div style="display:flex;justify-content:flex-end"><button class="btn btn-packflow btn-sm" id="pf-btn-'+p.id+"-"+i+'" onclick="enviarLineaPF('+p.id+","+i+')"><i class="ti ti-send"></i> Crear orden en PackFlow</button></div><div id="pf-status-'+p.id+"-"+i+'"></div>';area.appendChild(card);updatePFCalc(p.id,i);});}
@@ -569,6 +591,60 @@ function renderHistorial(){const db=loadData();const cerrados=db.pedidos.filter(
 function borrarPedidoHist(pid){const db=loadData();db.pedidos=db.pedidos.filter(x=>x.id!==pid);saveData(db);renderHistorial();}
 function reabrirPedido(pid){const db=loadData();const p=db.pedidos.find(x=>x.id===pid);if(!p)return;p.estado="abierto";p.fechaCierre=null;saveData(db);updateTabCounts();renderHistorial();switchTab("abiertos");}
 function switchTab(name){const names=["nuevo","abiertos","historial","packflow"];document.querySelectorAll(".tab").forEach((t,i)=>t.classList.toggle("active",names[i]===name));document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));document.getElementById("tab-"+name).classList.add("active");if(name==="abiertos")renderAbiertos();if(name==="historial")renderHistorial();if(name==="packflow")renderPackflow();}
+
+// ── IndexedDB for PDFs ─────────────────────────────────────
+var DB_NAME="sobrante_pdfs",DB_VER=1,DB_STORE="pdfs";
+var _db=null;
+function openDB(){
+  return new Promise(function(res,rej){
+    if(_db){res(_db);return;}
+    var req=indexedDB.open(DB_NAME,DB_VER);
+    req.onupgradeneeded=function(e){e.target.result.createObjectStore(DB_STORE,{keyPath:"id"});};
+    req.onsuccess=function(e){_db=e.target.result;res(_db);};
+    req.onerror=function(){rej(req.error);};
+  });
+}
+function savePDF(pedidoId,base64){
+  return openDB().then(function(db){
+    return new Promise(function(res,rej){
+      var tx=db.transaction(DB_STORE,"readwrite");
+      tx.objectStore(DB_STORE).put({id:pedidoId,data:base64});
+      tx.oncomplete=function(){res();};
+      tx.onerror=function(){rej(tx.error);};
+    });
+  });
+}
+function getPDF(pedidoId){
+  return openDB().then(function(db){
+    return new Promise(function(res,rej){
+      var tx=db.transaction(DB_STORE,"readonly");
+      var req=tx.objectStore(DB_STORE).get(pedidoId);
+      req.onsuccess=function(){res(req.result?req.result.data:null);};
+      req.onerror=function(){rej(req.error);};
+    });
+  });
+}
+function deletePDF(pedidoId){
+  return openDB().then(function(db){
+    return new Promise(function(res,rej){
+      var tx=db.transaction(DB_STORE,"readwrite");
+      tx.objectStore(DB_STORE).delete(pedidoId);
+      tx.oncomplete=function(){res();};
+      tx.onerror=function(){rej(tx.error);};
+    });
+  });
+}
+function viewPDF(pedidoId){
+  getPDF(pedidoId).then(function(b64){
+    if(!b64){showToast("PDF no disponible",true);return;}
+    var bin=atob(b64),bytes=new Uint8Array(bin.length);
+    for(var i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+    var blob=new Blob([bytes],{type:"application/pdf"});
+    var url=URL.createObjectURL(blob);
+    window.open(url,"_blank");
+  }).catch(function(){showToast("Error abriendo PDF",true);});
+}
+
 function updateTabCounts(){const db=loadData();document.getElementById("cnt-abiertos").textContent=db.pedidos.filter(p=>p.estado==="abierto").length;}
 function showToast(msg,err){const t=document.getElementById("toast");t.textContent=msg;t.style.cssText="background:"+((err===true)?"#2d1f1f":"#1f2d1f")+";color:"+(err?"var(--red)":"var(--green)")+";border:1px solid "+(err?"#4a2d2d":"#2d4a2d")+";position:fixed;bottom:24px;right:24px;border-radius:8px;padding:11px 18px;font-size:13px;z-index:999;font-weight:500";t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2500);}
 updateTabCounts();
