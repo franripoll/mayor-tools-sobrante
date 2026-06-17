@@ -258,6 +258,7 @@ function handleDrop(e){e.preventDefault();document.getElementById("dropzone").cl
 function handleFile(file){if(!file)return;const r=new FileReader();r.onload=async(ev)=>{try{const pdf=await pdfjsLib.getDocument({data:new Uint8Array(ev.target.result)}).promise;let chunks=[];for(let i=1;i<=pdf.numPages;i++){const pg=await pdf.getPage(i);const ct=await pg.getTextContent();ct.items.forEach(function(it){var s=it.str.trim();if(s.length>0)chunks.push(s);});}parsePedido(chunks.join("\n"));}catch(err){showToast("Error leyendo PDF",true);}};r.readAsArrayBuffer(file);}
 function parsePedido(text){
   try{
+  console.log("CHUNKS:",JSON.stringify(text.split("\n").filter(function(c){return c.trim().length>1;}).slice(0,30)));
   // Split into chunks (lines) as PDF.js delivers them
   var chunks=text.split(/\n/).map(function(c){return c.trim();}).filter(function(c){return c.length>1;});
   var used={};
@@ -266,19 +267,20 @@ function parsePedido(text){
   // Detect language
   var lang=chunks.some(function(c){return c==="PEDIDO";})?"es":"en";
 
-  // Numero pedido: chunk matching "21 - XXXXXX" (nacional) or "51 - XXXXXX" (exportacion)
+  // Numero pedido: "21 - XXXXXX" (nacional) or "51 - XXXXXX" (exportacion)
+  // Can appear as standalone chunk OR embedded in "PEDIDO 21 - XXXXXX"
   for(var i=0;i<chunks.length;i++){
-    var m=chunks[i].match(/^((?:21|51)\s*-\s*\d{5,7})$/);
+    var m=chunks[i].match(/\b((?:21|51)\s*-\s*\d{5,7})\b/);
     if(m){
-      result.numPedido=chunks[i].replace(/\s/g,"");
+      result.numPedido=m[1].replace(/\s/g,"");
       used[i]=1;
-      // Mark keyword before as used too
       if(i>0&&/PEDIDO|ORDER/i.test(chunks[i-1]))used[i-1]=1;
-      // Cliente: next chunk
-      if(i+1<chunks.length){result.cliente=chunks[i+1];used[i+1]=1;}
-      // Infer lang from prefix if not already set
-      if(chunks[i].match(/^21/)) lang="es";
-      else if(chunks[i].match(/^51/)) lang="en";
+      // Cliente: if this chunk has more than just the number, client may be in same chunk
+      var afterNum=chunks[i].slice(chunks[i].indexOf(m[1])+m[1].length).trim();
+      if(afterNum.length>3){result.cliente=afterNum;used[i]=1;}
+      else if(i+1<chunks.length){result.cliente=chunks[i+1];used[i+1]=1;}
+      if(m[1].match(/^21/))lang="es";
+      else if(m[1].match(/^51/))lang="en";
       break;
     }
   }
@@ -291,20 +293,40 @@ function parsePedido(text){
     }
   }
 
-  // Obra / numObra: "Obra" chunk -> next is number, then name
+  // Obra / numObra
   for(var i=0;i<chunks.length;i++){
     if(/^(?:Obra|Proyect)$/.test(chunks[i])){
-      // next chunk could be just the number
-      if(i+1<chunks.length&&/^\d+$/.test(chunks[i+1].trim())){
-        result.numObra=chunks[i+1].trim();
-        used[i]=1;used[i+1]=1;
-        if(i+2<chunks.length){result.nombreObra=chunks[i+2];used[i+2]=1;}
-      } else if(i+1<chunks.length){
-        // number embedded: "2 KRONOS..." or "66 663 PORTLAND..."
-        var nm=chunks[i+1].match(/^(\d+)\s+(.+)$/);
-        if(nm){result.numObra=nm[1];result.nombreObra=nm[2];used[i]=1;used[i+1]=1;}
+      if(i+1<chunks.length){
+        var nextChunk=chunks[i+1].trim();
+        if(/^\d+$/.test(nextChunk)){
+          // Next chunk is pure number: numObra=number, nombreObra=chunk after
+          result.numObra=nextChunk;
+          used[i]=1;used[i+1]=1;
+          if(i+2<chunks.length){result.nombreObra=chunks[i+2];used[i+2]=1;}
+        } else {
+          var nm=nextChunk.match(/^(\d+)\s+(.+)$/);
+          if(nm){
+            // Number embedded at start: "2 KRONOS MONTJUIC FASE 2"
+            result.numObra=nm[1];result.nombreObra=nm[2];
+            used[i]=1;used[i+1]=1;
+          } else {
+            // No number, just name
+            result.nombreObra=nextChunk;
+            used[i]=1;used[i+1]=1;
+          }
+        }
       }
       break;
+    }
+  }
+  // If numObra found but nombreObra is from separate chunk (like chunk[16]="KRONOS MONTJUIC FASE 2")
+  // and Su Referencia also has the name - prefer Su Referencia for nombreObra
+  if(!result.nombreObra){
+    for(var i=0;i<chunks.length;i++){
+      if(/^Su\s+Referencia$/i.test(chunks[i])||/^Reference$/i.test(chunks[i])){
+        if(i+1<chunks.length){result.nombreObra=chunks[i+1];used[i]=1;used[i+1]=1;}
+        break;
+      }
     }
   }
 
