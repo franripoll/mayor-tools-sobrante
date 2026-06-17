@@ -343,50 +343,63 @@ function parsePedido(text){
   }
 
   // Lineas ceramicas
+  // FS/FK at start of chunk = ALWAYS a product line (no exceptions)
+  // ES: "PIEZAS CERAMICAS X ONDAS" precedes the ref chunk
+  var pendingTipo="";
   for(var i=0;i<chunks.length;i++){
-    // ES: "PIEZAS CERAMICAS X ONDAS"
-    var tm=chunks[i].match(/^PIEZAS\s+CER[A\u00c1]MICAS\s+(.+)$/i);
-    if(tm){
-      var tipo=tm[1].trim();
-      var ref=i+1<chunks.length?chunks[i+1]:"";
+    var c=chunks[i];
+
+    // Capture tipo from "PIEZAS CERAMICAS X ONDAS"
+    var tm=c.match(/^PIEZAS\s+CER[A\u00c1]MICAS\s+(.+)$/i);
+    if(tm){pendingTipo=tm[1].trim();used[i]=1;continue;}
+
+    // FS/FK = product line, ALWAYS
+    if(/^F[SKFBskfb]\d/i.test(c)){
+      var ref=c.trim();
+      var tipo=pendingTipo||"";
+      pendingTipo="";
       var m2val=null,pzsval=null;
-      for(var j=i;j<Math.min(i+12,chunks.length);j++){
+      for(var j=i+1;j<Math.min(i+12,chunks.length);j++){
+        if(/^F[SKFBskfb]\d/i.test(chunks[j])) break;
         if(/^M2$/i.test(chunks[j])&&j>0){
           var prev=chunks[j-1];
-          // prev is like "914,4700 33.835,39" - take first number
           var nm=prev.match(/^([\d]+[,\.][\d]+)/);
-          if(nm)m2val=parseFloat(nm[1].replace(",","."));
-        }
-        if(/piezas/i.test(chunks[j])){
-          var pm=chunks[j].match(/^(\d+)/);
-          if(pm)pzsval=parseInt(pm[1]);
-        }
-      }
-      used[i]=1;if(i+1<chunks.length)used[i+1]=1;
-      var dec=decomposeRef(ref);result.lines.push({tipo:tipo,ref:ref,formato:dec.formato,medidas:dec.medidas,color:dec.color,m2Pedido:m2val,piezasPedido:pzsval});
-      i++;continue;
-    }
-    // EN: reference code with dimensions
-    if(lang==="en"){
-      var rm=chunks[i].match(/^([A-Z]{2,5}\d+\s+\d{3,4}[xX]\d{3,4}\s+[A-Z0-9]+(?:\s+[A-Z]+){0,3})$/i);
-      if(rm&&!/PORTLAND|CRANTON|STREET|DRIVE|AVENUE/i.test(chunks[i])){
-        var ref=chunks[i].trim();
-        var m2val=null,pzsval=null;
-        for(var j=i;j<Math.min(i+8,chunks.length);j++){
-          if(/^M2$/i.test(chunks[j])&&j>0){
-            var prev=chunks[j-1];
-            // EN: "1.641,6000" - remove dots (thousands), comma->dot
-            var nm=prev.match(/([\d\.]+,\d+)/);
-            if(nm){var raw=nm[1].replace(/\./g,"").replace(",",".");m2val=parseFloat(raw);}
+          if(nm){
+            var raw=nm[1];
+            if(raw.indexOf(".")>=0&&raw.indexOf(",")>=0){raw=raw.replace(/\./g,"").replace(",",".");}
+            else{raw=raw.replace(",",".");}
+            m2val=parseFloat(raw);
           }
-          if(/piezas/i.test(chunks[j])){var pm=chunks[j].match(/^(\d+)/);if(pm)pzsval=parseInt(pm[1]);}
         }
-        used[i]=1;
-        var dec=decomposeRef(ref);result.lines.push({tipo:"",ref:ref,formato:dec.formato,medidas:dec.medidas,color:dec.color,m2Pedido:m2val,piezasPedido:pzsval});
+        if(/piezas/i.test(chunks[j])){var pm2=chunks[j].match(/^(\d+)/);if(pm2)pzsval=parseInt(pm2[1]);}
       }
+      used[i]=1;
+      var ratioL=ratioFromRef(ref);
+      if(!pzsval&&m2val&&ratioL)pzsval=Math.round(m2val/ratioL);
+      var dec=decomposeRef(ref);
+      result.lines.push({tipo:tipo,ref:ref,formato:dec.formato,medidas:dec.medidas,color:dec.color,m2Pedido:m2val,piezasPedido:pzsval});
+      continue;
+    }
+
+    // ES fallback: pendingTipo set + chunk has dimensions = ref chunk
+    if(pendingTipo&&/\d+[xX]\d+/i.test(c)){
+      var ref=c.trim();var tipo=pendingTipo;pendingTipo="";
+      var m2val=null,pzsval=null;
+      for(var j=i+1;j<Math.min(i+12,chunks.length);j++){
+        if(/^F[SKFBskfb]\d/i.test(chunks[j])) break;
+        if(/^M2$/i.test(chunks[j])&&j>0){
+          var prev=chunks[j-1];var nm=prev.match(/^([\d]+[,\.][\d]+)/);
+          if(nm){var raw=nm[1].replace(",",".");m2val=parseFloat(raw);}
+        }
+        if(/piezas/i.test(chunks[j])){var pm2=chunks[j].match(/^(\d+)/);if(pm2)pzsval=parseInt(pm2[1]);}
+      }
+      used[i]=1;
+      var ratioL=ratioFromRef(ref);
+      if(!pzsval&&m2val&&ratioL)pzsval=Math.round(m2val/ratioL);
+      var dec=decomposeRef(ref);
+      result.lines.push({tipo:tipo,ref:ref,formato:dec.formato,medidas:dec.medidas,color:dec.color,m2Pedido:m2val,piezasPedido:pzsval});
     }
   }
-
   // Unmatched chunks (useful text not assigned to any field)
   var SKIP_PAT=/^(PEDIDO|ORDER|Obra|Proyect|Std|Non-Std|M2|Su Referencia|Reference|Fecha Pedido|Order Date|C[oó]d\. Cliente|Client Nr\.|Fecha Entrega Aprox\.|Appr\. Delivery Date|Centro destino|Dest\. cen\.|Observaciones|Notes|Usuario|User|Forma de pago|Payment terms|Incoterm|Portes|Transport|TRANSPORTE|ANCLAJES|Peso Neto|Peso Bruto|Gross Weight|Net Weight|Base Imponible|% IVA|Total|Forma de Env[ií]o|Type Delivery|Seguimiento online:|Online Tracking:|Descripci[oó]n|Description of goods|Importe|Cantidad|Peso|% Dtos\.|Precio|Cld\.|Pal\. Cajas|Qlt\.|Datos Bancarios)$/i;
   var unmatched=[];
