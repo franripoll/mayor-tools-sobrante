@@ -320,6 +320,65 @@ function setTipoPedido(tipo){
   var btnBag=document.getElementById("tipo-bag");
   if(btnFv)btnFv.className="type-btn"+(tipo==="fv"?" active-fv":"");
   if(btnBag)btnBag.className="type-btn"+(tipo==="bag"?" active-bag":"");
+  // Re-render lines to update m2/piezas fields
+  renderLinesForms();
+}
+
+function renderLinesForms(){
+  var lc=document.getElementById("fn-lines");
+  if(!lc||!draft)return;
+  lc.innerHTML="";
+  if(!draft.lines.length){
+    lc.innerHTML="<p style=\"font-size:12px;color:var(--muted)\">No se detectaron lineas ceramicas.</p>";
+    return;
+  }
+  var isBag=draft.tipoPedido==="bag";
+  draft.lines.forEach(function(l,li){
+    var dec2=decomposeRef(l.ref);
+    var ratio=ratioFromRef(l.ref);
+    var div=document.createElement("div");
+    div.className="line-row";
+    div.style.cssText="flex-direction:column;gap:8px;padding:12px;position:relative";
+    div.innerHTML=
+      "<div style=\"display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:4px\">"+
+        "<div><label style=\"font-size:10px;color:var(--muted);display:block;margin-bottom:3px\">FORMATO</label>"+
+          "<input id=\"fnl-fmt-"+li+"\" class=\"line-obs-inp\" style=\"font-family:monospace;font-weight:600;color:var(--blue)\" value=\""+encodeHTML(dec2.formato||"")+"\" placeholder=\"FFO3/40\">"+
+        "</div>"+
+        "<div><label style=\"font-size:10px;color:var(--muted);display:block;margin-bottom:3px\">MEDIDAS</label>"+
+          "<input id=\"fnl-med-"+li+"\" class=\"line-obs-inp\" style=\"color:var(--orange)\" value=\""+encodeHTML(dec2.medidas||"")+"\" placeholder=\"390X1200\" oninput=\"calcPiezas("+li+")\" >"+
+        "</div>"+
+        "<div><label style=\"font-size:10px;color:var(--muted);display:block;margin-bottom:3px\">COLOR</label>"+
+          "<input id=\"fnl-col-"+li+"\" class=\"line-obs-inp\" style=\"color:var(--green)\" value=\""+encodeHTML(dec2.color||"")+"\" placeholder=\"EB3315 B.VOLGA\">"+
+        "</div>"+
+      "</div>"+
+      "<div style=\"display:grid;grid-template-columns:1fr "+(isBag?"2fr":"1fr 1fr")+";gap:8px\">"+
+        "<div><label style=\"font-size:10px;color:var(--muted);display:block;margin-bottom:3px\">TIPO</label>"+
+          "<input id=\"fnl-tipo-"+li+"\" class=\"line-obs-inp\" value=\""+encodeHTML(l.tipo||"")+"\" placeholder=\"3 ONDAS\">"+
+        "</div>"+
+        (isBag?
+          "<div style=\"grid-column:span 1\"><label style=\"font-size:10px;color:var(--muted);display:block;margin-bottom:3px\">PIEZAS PEDIDO</label>"+
+            "<input id=\"fnl-pzs-"+li+"\" class=\"line-obs-inp\" style=\"text-align:right\" value=\""+encodeHTML(String(l.piezasPedido!==null&&l.piezasPedido!==undefined?l.piezasPedido:""))+"\" placeholder=\"0\">"+
+            "<input id=\"fnl-m2-"+li+"\" type=\"hidden\" value=\"\">"+
+          "</div>"
+          :
+          "<div><label style=\"font-size:10px;color:var(--muted);display:block;margin-bottom:3px\">m² PEDIDO</label>"+
+            "<input id=\"fnl-m2-"+li+"\" class=\"line-obs-inp\" style=\"text-align:right\" value=\""+encodeHTML(String(l.m2Pedido||""))+"\" placeholder=\"0.00\" oninput=\"calcPiezas("+li+")\" >"+
+          "</div>"+
+          "<div><label style=\"font-size:10px;color:var(--muted);display:block;margin-bottom:3px\">PIEZAS PEDIDO <span style=\"color:var(--muted);font-weight:400\">(auto)</span></label>"+
+            "<input id=\"fnl-pzs-"+li+"\" class=\"line-obs-inp\" style=\"text-align:right;color:var(--muted)\" value=\""+encodeHTML(String(l.piezasPedido!==null&&l.piezasPedido!==undefined?l.piezasPedido:""))+"\" placeholder=\"calculado\" readonly>"+
+          "</div>"
+        )+
+      "</div>";
+    // Delete button
+    var delBtn=document.createElement("button");
+    delBtn.className="btn btn-danger btn-xs";
+    delBtn.title="Eliminar linea";
+    delBtn.style.cssText="position:absolute;top:8px;right:8px;padding:3px 8px;font-size:11px;z-index:1";
+    delBtn.innerHTML='<i class="ti ti-x"></i>';
+    delBtn.onclick=(function(idx){return function(e){e.stopPropagation();draft.lines.splice(idx,1);renderLinesForms();};})(li);
+    div.appendChild(delBtn);
+    lc.appendChild(div);
+  });
 }
 function encodeHTML(s){return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
 function decomposeRef(ref){
@@ -571,51 +630,8 @@ function renderFormNuevo(){
   renderChunkSelectors(chunks);
 
   // Render lines
-  var lc=document.getElementById("fn-lines");lc.innerHTML="";
-  if(!draft.lines.length){
-    lc.innerHTML="<p style=\"font-size:12px;color:var(--muted)\">No se detectaron lineas ceramicas.</p>";
-  } else {
-    draft.lines.forEach(function(l,li){
-      var dec2=decomposeRef(l.ref);
-      var ratio=ratioFromRef(l.ref);
-      var div=document.createElement("div");
-      div.className="line-row";
-      div.style.cssText="flex-direction:column;gap:8px;padding:12px";
-      div.style.position="relative";
-      div.innerHTML=
-        "<div style=\"display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:4px\">"+
-          "<div><label style=\"font-size:10px;color:var(--muted);display:block;margin-bottom:3px\">FORMATO</label>"+
-            "<input id=\"fnl-fmt-"+li+"\" class=\"line-obs-inp\" style=\"font-family:monospace;font-weight:600;color:var(--blue)\" value=\""+encodeHTML(dec2.formato||"")+"\" placeholder=\"FFO3/40\">"+
-          "</div>"+
-          "<div><label style=\"font-size:10px;color:var(--muted);display:block;margin-bottom:3px\">MEDIDAS</label>"+
-            "<input id=\"fnl-med-"+li+"\" class=\"line-obs-inp\" style=\"color:var(--orange)\" value=\""+encodeHTML(dec2.medidas||"")+"\" placeholder=\"390X1200\" oninput=\"calcPiezas("+li+")\" >"+
-          "</div>"+
-          "<div><label style=\"font-size:10px;color:var(--muted);display:block;margin-bottom:3px\">COLOR</label>"+
-            "<input id=\"fnl-col-"+li+"\" class=\"line-obs-inp\" style=\"color:var(--green)\" value=\""+encodeHTML(dec2.color||"")+"\" placeholder=\"EB3315 B.VOLGA\">"+
-          "</div>"+
-        "</div>"+
-        "<div style=\"display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px\">"+
-          "<div><label style=\"font-size:10px;color:var(--muted);display:block;margin-bottom:3px\">TIPO</label>"+
-            "<input id=\"fnl-tipo-"+li+"\" class=\"line-obs-inp\" value=\""+encodeHTML(l.tipo||"")+"\" placeholder=\"3 ONDAS\">"+
-          "</div>"+
-          "<div><label style=\"font-size:10px;color:var(--muted);display:block;margin-bottom:3px\">m² PEDIDO</label>"+
-            "<input id=\"fnl-m2-"+li+"\" class=\"line-obs-inp\" style=\"text-align:right\" value=\""+( l.m2Pedido||"")+"\" placeholder=\"0.00\" oninput=\"calcPiezas("+li+")\" >"+
-          "</div>"+
-          "<div><label style=\"font-size:10px;color:var(--muted);display:block;margin-bottom:3px\">PIEZAS PEDIDO <span style=\"color:var(--muted);font-weight:400\">(auto)</span></label>"+
-            "<input id=\"fnl-pzs-"+li+"\" class=\"line-obs-inp\" style=\"text-align:right;color:var(--muted)\" value=\""+( l.piezasPedido||"")+"\" placeholder=\"calculado\" readonly>"+
-          "</div>"+
-        "</div>";
-      var delBtn=document.createElement("button");
-      delBtn.className="btn btn-danger btn-xs";
-      delBtn.title="Eliminar línea";
-      delBtn.style.cssText="position:absolute;top:8px;right:8px;padding:3px 8px;font-size:11px;z-index:1";
-      delBtn.innerHTML='<i class="ti ti-x"></i>';
-      delBtn.onclick=(function(idx){return function(e){e.stopPropagation();draft.lines.splice(idx,1);renderFormNuevo();};})(li);
-      div.appendChild(delBtn);
-      lc.appendChild(div);
-    });
-  }
-  document.getElementById("dropzone").style.display="none";document.getElementById("form-nuevo").style.display="block";
+  renderLinesForms();
+    document.getElementById("dropzone").style.display="none";document.getElementById("form-nuevo").style.display="block";
 }
 
 function renderChunkSelectors(chunks){
