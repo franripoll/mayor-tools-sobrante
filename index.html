@@ -1097,7 +1097,8 @@ function renderRefStats(data){
   filterRefStats();
 }
 
-function toggleRefDetail(row, key){
+function toggleRefDetail(row){
+  var key=decodeURIComponent(row.getAttribute("data-refkey")||"");
   // Find the detail row right after this row
   var next=row.nextElementSibling;
   if(!next||!next.classList.contains("ref-detail-row"))return;
