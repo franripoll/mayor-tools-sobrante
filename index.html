@@ -138,6 +138,8 @@ input[type=file]{display:none}
 .ref-table td{padding:7px 8px;border-bottom:1px solid rgba(33,38,45,.5);font-size:12px;vertical-align:middle}
 .ref-table tr:last-child td{border-bottom:none}
 .ref-table tr:hover td{background:rgba(255,255,255,.02)}
+.ref-row:hover td{background:rgba(88,166,255,.04) !important;cursor:pointer}
+.ref-detail-row td{background:rgba(88,166,255,.03);border-bottom:1px solid var(--border)}
 .pct-bar{display:flex;align-items:center;gap:6px}
 .pct-fill{height:5px;border-radius:3px;background:var(--orange);min-width:2px;transition:width .3s}
 .sort-icon{font-size:10px;margin-left:3px;opacity:.5}
@@ -1095,6 +1097,72 @@ function renderRefStats(data){
   filterRefStats();
 }
 
+function toggleRefDetail(row, key){
+  // Find the detail row right after this row
+  var next=row.nextElementSibling;
+  if(!next||!next.classList.contains("ref-detail-row"))return;
+  var isOpen=next.style.display!=="none";
+  // Close all other detail rows
+  document.querySelectorAll(".ref-detail-row").forEach(function(r){r.style.display="none";});
+  document.querySelectorAll(".ref-row .ti-chevron-down").forEach(function(i){i.style.transform="";});
+  if(isOpen)return;
+  // Open this one
+  next.style.display="";
+  var chev=row.querySelector(".ti-chevron-down");
+  if(chev)chev.style.transform="rotate(180deg)";
+  // Build content
+  var td=next.querySelector("td");
+  if(!td)return;
+  // Find all pedidos that have this ref key
+  var db=loadData();
+  var cerrados=db.pedidos.filter(function(p){return p.estado==="cerrado";});
+  var matches=[];
+  cerrados.forEach(function(p){
+    p.lines.forEach(function(l){
+      var k=(l.formato||"—")+"|"+(l.medidas||"—")+"|"+(l.color||"—");
+      if(k===key){
+        matches.push({
+          cliente:p.cliente||"—",
+          numPedido:p.numPedido||"—",
+          nombreObra:p.nombreObra||"—",
+          numObra:p.numObra||"",
+          pais:p.pais||"—",
+          fecha:p.fecha||"—",
+          fechaCierre:p.fechaCierre||"—",
+          tipo:l.tipo||"",
+          m2Pedido:l.m2Pedido||0,
+          m2Sobrante:l.m2Sobrante||0,
+          piezasSobrante:l.piezasSobrante||0
+        });
+      }
+    });
+  });
+  if(!matches.length){td.innerHTML='<div style="padding:10px 16px;font-size:12px;color:var(--muted)">Sin pedidos cerrados con esta referencia</div>';return;}
+  td.innerHTML='<div style="padding:8px 16px 12px">'+
+    '<div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px">Pedidos con esta referencia</div>'+
+    '<div style="display:flex;flex-direction:column;gap:6px">'+
+    matches.map(function(m){
+      var pct=m.m2Pedido>0?((m.m2Sobrante/m.m2Pedido)*100).toFixed(1):null;
+      var pctColor=pct&&parseFloat(pct)<5?"var(--green)":pct&&parseFloat(pct)<10?"var(--yellow)":"var(--orange)";
+      return '<div style="display:flex;align-items:center;justify-content:space-between;background:#0d1117;border:1px solid var(--border);border-radius:6px;padding:8px 12px">'+
+        '<div style="min-width:0">'+
+          '<div style="font-size:12px;font-weight:600;color:var(--text)">'+m.cliente+'</div>'+
+          '<div style="font-size:11px;color:var(--muted);margin-top:2px">'+
+            (m.numPedido?'<span style="color:var(--blue);font-family:monospace">'+m.numPedido+'</span> · ':'')+
+            (m.numObra?m.numObra+' · ':'')+m.nombreObra+' · '+m.fecha+
+          '</div>'+
+          '<div style="margin-top:3px"><span class="badge badge-pais" style="font-size:10px">'+m.pais+'</span>'+(m.tipo?'<span style="font-size:10px;color:var(--muted);margin-left:6px">'+m.tipo+'</span>':'')+'</div>'+
+        '</div>'+
+        '<div style="text-align:right;flex-shrink:0;margin-left:16px">'+
+          '<div style="font-size:11px;color:var(--muted)">'+m.m2Pedido.toFixed(1)+' m² ped.</div>'+
+          '<div style="font-size:12px;font-weight:600;color:var(--orange)">'+m.piezasSobrante+' pzs · '+m.m2Sobrante.toFixed(1)+' m² sob.</div>'+
+          (pct?'<div style="font-size:10px;color:'+pctColor+'">'+pct+'%</div>':'')+
+        '</div>'+
+      '</div>';
+    }).join("")+
+    '</div></div>';
+}
+
 function _renderRefTable(list){
   // Apply sort
   list.sort(function(a,b){
@@ -1120,20 +1188,26 @@ function _renderRefTable(list){
     sortTh("m2Ped","m\u00b2 ped.")+
     sortTh("m2Sob","m\u00b2 sob.")+
     sortTh("pct","% sob.")+
-    sortTh("pedidos","Pedidos")+
+    sortTh("pedidos","Pedidos")+'<th></th>'+
   '</tr></thead><tbody>'+
   list.map(function(r){
     var pct=r.m2ped>0?((r.m2sob/r.m2ped)*100):0;
     var barW=maxSob>0?Math.round((r.m2sob/maxSob)*80):0;
     var pctColor=pct<5?"var(--green)":pct<10?"var(--yellow)":"var(--orange)";
-    return '<tr>'+
+    var key=r.formato+"|"+r.medidas+"|"+r.color;
+    var safeKey=key.replace(/[^a-zA-Z0-9]/g,"-");
+    return '<tr class="ref-row" data-refkey="'+encodeURIComponent(key)+'" onclick="toggleRefDetail(this)" style="cursor:pointer">'+
       '<td><span style="background:rgba(88,166,255,.15);color:var(--blue);border-radius:4px;padding:2px 7px;font-size:11px;font-weight:600;font-family:monospace">'+r.formato+'</span></td>'+
       '<td><span style="background:rgba(240,136,62,.12);color:var(--orange);border-radius:4px;padding:2px 7px;font-size:11px">'+r.medidas+'</span></td>'+
       '<td style="font-size:11px;color:var(--muted)">'+r.color+'</td>'+
-      '<td style="color:var(--muted)">'+r.m2ped.toFixed(1)+' m\u00b2</td>'+
-      '<td><div class="pct-bar"><div class="pct-fill" style="width:'+barW+'px"></div><span style="color:var(--orange)">'+r.m2sob.toFixed(1)+' m\u00b2</span></div></td>'+
+      '<td style="color:var(--muted)">'+r.m2ped.toFixed(1)+' m²</td>'+
+      '<td><div class="pct-bar"><div class="pct-fill" style="width:'+barW+'px"></div><span style="color:var(--orange)">'+r.m2sob.toFixed(1)+' m²</span></div></td>'+
       '<td><span style="color:'+pctColor+';font-weight:600">'+pct.toFixed(1)+'%</span></td>'+
       '<td style="color:var(--muted)">'+r.pedidos.size+'</td>'+
+      '<td style="color:var(--muted);font-size:11px"><i class="ti ti-chevron-down" style="font-size:12px"></i></td>'+
+    '</tr>'+
+    '<tr class="ref-detail-row" id="ref-detail-'+key.replace(/[^a-zA-Z0-9]/g,'-')+'" style="display:none">'+
+      '<td colspan="8" style="padding:0"></td>'+
     '</tr>';
   }).join("")+
   '</tbody></table>';
