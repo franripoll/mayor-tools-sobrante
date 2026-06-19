@@ -559,6 +559,7 @@ function renderFormNuevo(){
       var div=document.createElement("div");
       div.className="line-row";
       div.style.cssText="flex-direction:column;gap:8px;padding:12px";
+      div.style.position="relative";
       div.innerHTML=
         "<div style=\"display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:4px\">"+
           "<div><label style=\"font-size:10px;color:var(--muted);display:block;margin-bottom:3px\">FORMATO</label>"+
@@ -582,6 +583,13 @@ function renderFormNuevo(){
             "<input id=\"fnl-pzs-"+li+"\" class=\"line-obs-inp\" style=\"text-align:right;color:var(--muted)\" value=\""+( l.piezasPedido||"")+"\" placeholder=\"calculado\" readonly>"+
           "</div>"+
         "</div>";
+      var delBtn=document.createElement("button");
+      delBtn.className="btn btn-danger btn-xs";
+      delBtn.title="Eliminar línea";
+      delBtn.style.cssText="position:absolute;top:8px;right:8px;padding:3px 8px;font-size:11px;z-index:1";
+      delBtn.innerHTML='<i class="ti ti-x"></i>';
+      delBtn.onclick=(function(idx){return function(e){e.stopPropagation();draft.lines.splice(idx,1);renderFormNuevo();};})(li);
+      div.appendChild(delBtn);
       lc.appendChild(div);
     });
   }
