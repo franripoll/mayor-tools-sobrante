@@ -663,7 +663,7 @@ function renderAbiertos(){const db=loadData();const abiertos=db.pedidos.filter(p
         '<div class="pedido-head-info" style="min-width:0">'+
           '<div class="pedido-head-title">'+(p.cliente||'—')+'</div>'+
           '<div style="display:flex;align-items:center;gap:6px;margin-top:2px">'+
-            '<div class="pedido-head-sub">'+(p.numObra?p.numObra+' · ':'')+' '+(p.nombreObra||'—')+' · '+p.fecha+'</div>'+
+            '<div class="pedido-head-sub">'+(p.numPedido?'<span style="color:var(--blue);font-family:monospace;font-weight:600">'+p.numPedido+'</span> · ':'')+( p.numObra?p.numObra+' · ':'')+' '+(p.nombreObra||'—')+' · '+p.fecha+'</div>'+
             '<button class="btn btn-xs btn-edit" style="padding:1px 6px;font-size:10px;flex-shrink:0" onclick="event.stopPropagation();editPedidoInfo('+p.id+')"><i class="ti ti-pencil"></i></button>'+
           '</div>'+
         '</div>'+
