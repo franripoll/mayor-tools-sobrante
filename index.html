@@ -888,7 +888,7 @@ function enviarLineaPF(pid,li){
   if(!pzs){showToast("Esta línea no tiene piezas definidas",true);return;}
   statusEl.innerHTML='<div class="pf-status-bar pf-status-loading"><div class="spinner"></div> Enviando a PackFlow...</div>';
   if(btn)btn.disabled=true;
-  pfPost("ordenes",{id:"ORD-"+Date.now(),ref_id:refId,cantidad:pzs,inicio:inicioVal,fin:inicioVal,cliente:p.cliente||"",obra:p.nombreObra||""}).then(function(){
+  pfPost("ordenes",{id:"ORD-"+Date.now(),ref_id:refId,cantidad:pzs,inicio:inicioVal,fin:inicioVal,dias:0,cliente:p.cliente||"",obra:p.nombreObra||""}).then(function(){
     statusEl.innerHTML='<div class="pf-status-bar pf-status-ok"><i class="ti ti-check"></i> Orden creada: <strong>'+pzs+' piezas</strong> · inicio '+inicioVal+'</div>';
     p.pfEnviado=true;saveData(db);showToast("Orden creada en PackFlow",false);updateTabCounts();
   }).catch(function(e){
