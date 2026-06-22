@@ -858,8 +858,44 @@ function borrarPedido(pid){const db=loadData();db.pedidos=db.pedidos.filter(x=>x
 function toggleCard(pid){const body=document.getElementById("body-"+pid);const chev=document.getElementById("chev-"+pid);if(!body)return;const open=body.classList.toggle("open");if(chev)chev.style.transform=open?"rotate(180deg)":"";if(open)openCards.add(pid);else openCards.delete(pid);}
 async function renderPackflow(){const db=loadData();const sel=document.getElementById("pf-select-pedido");const prev=sel.value;sel.innerHTML='<option value="">- elige un pedido -</option>';db.pedidos.forEach(p=>{const o=document.createElement("option");o.value=p.id;o.textContent=(p.numPedido||"Sin num")+" - "+(p.nombreObra||p.cliente||"-")+" - "+p.fecha+(p.pfEnviado?" (enviado)":"");if(String(p.id)===prev)o.selected=true;sel.appendChild(o);});document.getElementById("pf-pedido-area").style.display="none";const st=document.getElementById("pf-refs-status");st.innerHTML='<div class="pf-status-bar pf-status-loading"><div class="spinner"></div> Conectando con PackFlow...</div>';try{pfRefs=await pfGet("refs","select=id,nombre,articulo,proddia,piezas_pale,piezas_caja,cajas_pale&order=nombre");st.innerHTML='<div class="pf-status-bar pf-status-ok"><i class="ti ti-check"></i> '+pfRefs.length+' referencias cargadas de PackFlow</div>';}catch(e){pfRefs=[];st.innerHTML='<div class="pf-status-bar pf-status-err"><i class="ti ti-alert-triangle"></i> No se pudo conectar: '+e.message+'</div>';}if(prev)renderPFPedido();}
 function renderPFPedido(){const db=loadData();const pid=document.getElementById("pf-select-pedido").value;const area=document.getElementById("pf-pedido-area");if(!pid){area.style.display="none";return;}const p=db.pedidos.find(x=>String(x.id)===String(pid));if(!p){area.style.display="none";return;}area.style.display="flex";area.innerHTML="";const head=document.createElement("div");head.className="card";head.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><div><div style="font-size:13px;font-weight:600;color:var(--text)">'+( p.cliente||"-")+'</div><div style="font-size:11px;color:var(--muted);margin-top:2px">'+( p.numObra?p.numObra+" - ":"")+' '+(p.nombreObra||"-")+" - "+p.fecha+" - "+p.pais+'</div></div>'+(p.pfEnviado?'<span class="badge badge-sent"><i class="ti ti-check" style="font-size:10px"></i> Ya enviado a PackFlow</span>':"")+'</div>';area.appendChild(head);p.lines.forEach((l,i)=>{const card=document.createElement("div");card.className="card";const refMatch=pfRefs.find(r=>r.nombre&&l.ref&&(r.nombre.toLowerCase().includes(l.ref.toLowerCase().split(" ")[0])||l.ref.toLowerCase().includes((r.articulo||"").toLowerCase())));const opts=pfRefs.map(r=>'<option value="'+r.id+'" '+(refMatch&&r.id===refMatch.id?"selected":"")+'>'+r.nombre+(r.articulo?' ('+r.articulo+")":"")+'</option>').join("");const hoy=new Date().toISOString().split("T")[0];card.innerHTML='<div style="display:flex;align-items:flex-start;gap:10px"><div><div style="font-size:12px;font-weight:600;color:var(--text);font-family:monospace">'+l.ref+'</div><div style="font-size:11px;color:var(--muted);margin-top:2px">'+l.tipo+(l.m2Pedido?' - '+l.m2Pedido.toFixed(2)+' m2':"")+" "+(l.piezasPedido?' - '+l.piezasPedido+' pzs':"")+'</div></div></div><div class="field"><label>Referencia en PackFlow</label><select id="pf-ref-'+p.id+"-"+i+'" onchange="updatePFCalc('+p.id+","+i+')" style="background:#0d1117;border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;padding:6px 9px;width:100%"><option value="">- sin referencia -</option>'+opts+'</select></div><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><label style="font-size:11px;color:var(--muted);white-space:nowrap">Inicio produccion</label><input type="date" id="pf-inicio-'+p.id+"-"+i+'" value="'+hoy+'" style="background:#0d1117;border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;padding:5px 9px"></div><div id="pf-calc-'+p.id+"-"+i+'" style="font-size:12px;color:var(--muted)"></div><div style="display:flex;justify-content:flex-end"><button class="btn btn-packflow btn-sm" id="pf-btn-'+p.id+"-"+i+'" onclick="enviarLineaPF('+p.id+","+i+')"><i class="ti ti-send"></i> Crear orden en PackFlow</button></div><div id="pf-status-'+p.id+"-"+i+'"></div>';area.appendChild(card);updatePFCalc(p.id,i);});}
-function updatePFCalc(pid,li){const refId=(document.getElementById("pf-ref-"+pid+"-"+li)||{value:""}).value;const el=document.getElementById("pf-calc-"+pid+"-"+li);if(!el)return;if(!refId){el.textContent="";return;}const ref=pfRefs.find(r=>r.id===refId);if(!ref){el.textContent="";return;}const db=loadData();const p=db.pedidos.find(x=>String(x.id)===String(pid));if(!p)return;const l=p.lines[li];const pzs=l.piezasPedido||0;const pzsPale=ref.piezas_pale||0;const pales=pzsPale>0?Math.ceil(pzs/pzsPale):0;const dias=ref.proddia>0?Math.ceil(pales/ref.proddia):0;el.innerHTML='<span style="color:var(--blue)">'+ref.nombre+'</span> - '+pzsPale+' pzs/pale - '+ref.proddia+' pales/dia'+(pzs>0?' &rarr; <strong style="color:var(--text)">'+pales+' pales</strong>, ~'+dias+' dias':"");}
-async function enviarLineaPF(pid,li){const refId=(document.getElementById("pf-ref-"+pid+"-"+li)||{value:""}).value;const inicioVal=(document.getElementById("pf-inicio-"+pid+"-"+li)||{value:""}).value;const statusEl=document.getElementById("pf-status-"+pid+"-"+li);const btn=document.getElementById("pf-btn-"+pid+"-"+li);if(!refId){showToast("Selecciona una referencia de PackFlow",true);return;}if(!inicioVal){showToast("Indica la fecha de inicio",true);return;}const db=loadData();const p=db.pedidos.find(x=>String(x.id)===String(pid));if(!p)return;const l=p.lines[li];const ref=pfRefs.find(r=>r.id===refId);const pzs=l.piezasPedido||0;const pzsPale=(ref||{}).piezas_pale||0;const pales=pzsPale>0?Math.ceil(pzs/pzsPale):1;const dias=(ref||{}).proddia>0?Math.ceil(pales/ref.proddia):1;const fin=new Date(inicioVal);fin.setDate(fin.getDate()+dias);const finStr=fin.toISOString().split("T")[0];statusEl.innerHTML='<div class="pf-status-bar pf-status-loading"><div class="spinner"></div> Enviando a PackFlow...</div>';if(btn)btn.disabled=true;try{await pfPost("ordenes",{id:"ORD-"+Date.now(),ref_id:refId,cantidad:pales,inicio:inicioVal,fin:finStr,dias});statusEl.innerHTML='<div class="pf-status-bar pf-status-ok"><i class="ti ti-check"></i> Orden creada: <strong>'+pales+' pales</strong> - inicio '+inicioVal+' - fin estimado '+finStr+'</div>';p.pfEnviado=true;saveData(db);showToast("Orden creada en PackFlow", false);updateTabCounts();}catch(e){statusEl.innerHTML='<div class="pf-status-bar pf-status-err"><i class="ti ti-alert-triangle"></i> Error: '+e.message+'</div>';}if(btn)btn.disabled=false;}
+function updatePFCalc(pid,li){
+  var refId=(document.getElementById("pf-ref-"+pid+"-"+li)||{value:""}).value;
+  var el=document.getElementById("pf-calc-"+pid+"-"+li);
+  if(!el)return;
+  if(!refId){el.textContent="";return;}
+  var ref=pfRefs.find(function(r){return r.id===refId;});
+  if(!ref){el.textContent="";return;}
+  var db=loadData();
+  var p=db.pedidos.find(function(x){return String(x.id)===String(pid);});
+  if(!p)return;
+  var l=p.lines[li];
+  var pzs=l.piezasPedido||0;
+  el.innerHTML='<span style="color:var(--blue)">'+ref.nombre+'</span>'+(pzs>0?' &rarr; <strong style="color:var(--text)">'+pzs+' piezas</strong>':"");
+}
+
+function enviarLineaPF(pid,li){
+  var refId=(document.getElementById("pf-ref-"+pid+"-"+li)||{value:""}).value;
+  var inicioVal=(document.getElementById("pf-inicio-"+pid+"-"+li)||{value:""}).value;
+  var statusEl=document.getElementById("pf-status-"+pid+"-"+li);
+  var btn=document.getElementById("pf-btn-"+pid+"-"+li);
+  if(!refId){showToast("Selecciona una referencia de PackFlow",true);return;}
+  if(!inicioVal){showToast("Indica la fecha de inicio",true);return;}
+  var db=loadData();
+  var p=db.pedidos.find(function(x){return String(x.id)===String(pid);});
+  if(!p)return;
+  var l=p.lines[li];
+  var pzs=l.piezasPedido||0;
+  if(!pzs){showToast("Esta línea no tiene piezas definidas",true);return;}
+  statusEl.innerHTML='<div class="pf-status-bar pf-status-loading"><div class="spinner"></div> Enviando a PackFlow...</div>';
+  if(btn)btn.disabled=true;
+  pfPost("ordenes",{id:"ORD-"+Date.now(),ref_id:refId,cantidad:pzs,inicio:inicioVal}).then(function(){
+    statusEl.innerHTML='<div class="pf-status-bar pf-status-ok"><i class="ti ti-check"></i> Orden creada: <strong>'+pzs+' piezas</strong> · inicio '+inicioVal+'</div>';
+    p.pfEnviado=true;saveData(db);showToast("Orden creada en PackFlow",false);updateTabCounts();
+  }).catch(function(e){
+    statusEl.innerHTML='<div class="pf-status-bar pf-status-err"><i class="ti ti-alert-triangle"></i> Error: '+e.message+'</div>';
+    if(btn)btn.disabled=false;
+  });
+}
 function renderHistorial(){
   var db=loadData();
   var cerrados=db.pedidos.filter(function(p){return p.estado==="cerrado";});
