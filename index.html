@@ -229,6 +229,7 @@ input[type=file]{display:none}
       <input class="hist-filter" id="f-numpedido" placeholder="Nº pedido..." oninput="renderHistorial()" style="min-width:110px">
       <input class="hist-filter" id="f-cliente" placeholder="Filtrar cliente..." oninput="renderHistorial()" style="flex:1;min-width:110px">
       <input class="hist-filter" id="f-obra" placeholder="Filtrar obra..." oninput="renderHistorial()" style="flex:1;min-width:100px">
+      <select class="hist-filter" id="f-tipo" onchange="renderHistorial()" style="min-width:130px"><option value="">Todos los tipos</option><option value="fv">Fachada ventilada</option><option value="bag">Baguettes</option></select>
       <select class="hist-filter" id="f-anyo" onchange="renderHistorial()" style="min-width:90px"><option value="">Todos los años</option></select>
       <select class="hist-filter" id="f-pais" onchange="renderHistorial()" style="min-width:130px"><option value="">Todos los paises</option></select>
     </div>
@@ -918,6 +919,7 @@ function renderHistorial(){
   var fo=((document.getElementById("f-obra")||{value:""}).value||"").toLowerCase();
   var fp=(document.getElementById("f-pais")||{value:""}).value||"";
   var fa=(document.getElementById("f-anyo")||{value:""}).value||"";
+  var ft=(document.getElementById("f-tipo")||{value:""}).value||"";
 
   // Helper: extract year from fechaCierre (dd/mm/yyyy or similar)
   function getYear(p){
@@ -944,7 +946,8 @@ function renderHistorial(){
            (!fc||(p.cliente||"").toLowerCase().includes(fc))&&
            (!fo||(p.nombreObra||"").toLowerCase().includes(fo)||(p.numObra||"").includes(fo))&&
            (!fp||p.pais===fp)&&
-           (!fa||getYear(p)===fa);
+           (!fa||getYear(p)===fa)&&
+           (!ft||( ft==="fv"?(p.tipoPedido!=="bag"):p.tipoPedido===ft));
   }).reverse();
 
   // ── KPIs (all based on filtered) ──
