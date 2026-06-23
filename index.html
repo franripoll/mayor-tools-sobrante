@@ -106,7 +106,7 @@ input[type=file]{display:none}
 .pedido-body{border-top:1px solid var(--border);padding:14px 16px;display:none;flex-direction:column;gap:12px}
 .pedido-body.open{display:flex}
 .obs-block{background:rgba(240,136,62,.05);border-left:2px solid rgba(240,136,62,.4);border-radius:0 5px 5px 0;padding:7px 11px;font-size:11px;color:var(--muted);line-height:1.5}
-.kpi-row{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+.kpi-row{display:grid;grid-template-columns:repeat(7,1fr);gap:10px}
 @media(max-width:600px){.kpi-row{grid-template-columns:1fr 1fr}}
 .kpi{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:13px}
 .kpi-num{font-size:28px;font-weight:600;color:var(--text)}
@@ -222,6 +222,7 @@ input[type=file]{display:none}
       <div class="kpi"><div class="kpi-num" id="kpi-m2pedido">0</div><div class="kpi-label">m² producidos</div></div>
       <div class="kpi"><div class="kpi-num" id="kpi-m2">0</div><div class="kpi-label">m² sobrantes</div></div>
       <div class="kpi"><div class="kpi-num" id="kpi-pct" style="color:var(--green)">—</div><div class="kpi-label">% sobrante</div></div>
+      <div class="kpi"><div class="kpi-num" id="kpi-bag" style="color:var(--yellow)">0</div><div class="kpi-label">Baguettes (pzs)</div></div>
       <div class="kpi"><div class="kpi-num" id="kpi-clientes">0</div><div class="kpi-label">Clientes</div></div>
       <div class="kpi"><div class="kpi-num" id="kpi-paises">0</div><div class="kpi-label">Paises</div></div>
     </div>
@@ -952,6 +953,9 @@ function renderHistorial(){
 
   // ── KPIs (all based on filtered) ──
   var fvOnly=filtered.filter(function(p){return p.tipoPedido!=="bag";});
+  var bagOnly=filtered.filter(function(p){return p.tipoPedido==="bag";});
+  var _bagPzs=bagOnly.reduce(function(s,p){return s+p.lines.reduce(function(ss,l){return ss+(l.piezasPedido||0);},0);},0);
+  var _bagEl=document.getElementById("kpi-bag");if(_bagEl)_bagEl.textContent=_bagPzs.toLocaleString();
   var _m2sob=fvOnly.reduce(function(s,p){return s+p.lines.reduce(function(ss,l){return ss+(l.m2Sobrante||0);},0);},0);
   var _m2ped=fvOnly.reduce(function(s,p){return s+p.lines.reduce(function(ss,l){return ss+(l.m2Pedido||0);},0);},0);
   var _pct=_m2ped>0?((_m2sob/_m2ped)*100).toFixed(1):null;
