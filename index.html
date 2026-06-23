@@ -1039,7 +1039,7 @@ function renderHistorial(){
         (l.obsLinea?'<span style="font-size:11px;color:var(--muted);font-style:italic">'+l.obsLinea+'</span>':'')+
         '</div>'+
         '<div style="text-align:right;font-size:12px;flex-shrink:0;margin-left:16px">'+
-          '<div style="color:var(--muted);font-size:11px">'+(l.m2Pedido?l.m2Pedido.toFixed(2)+' m\u00b2 ped.':'\u2014 m\u00b2 ped.')+'</div>'+
+          '<div style="color:var(--muted);font-size:11px">'+(p.tipoPedido==="bag"?(l.piezasPedido?l.piezasPedido+' pzs ped.':'\u2014 pzs ped.'):(l.m2Pedido?l.m2Pedido.toFixed(2)+' m\u00b2 ped.':'\u2014 m\u00b2 ped.'))+'</div>'+
           '<div style="font-weight:600;color:var(--orange)">'+(l.piezasSobrante>0?l.piezasSobrante+' pzs \u00b7 '+l.m2Sobrante.toFixed(2)+' m\u00b2 sob.':'sin sobrante')+'</div>'+
           (lpct?'<div style="font-size:10px;color:var(--green)">'+lpct+'% sob.</div>':'')+
         '</div>'+
