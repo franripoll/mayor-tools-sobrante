@@ -214,7 +214,12 @@ input[type=file]{display:none}
     </div>
   </div>
 
-  <div id="tab-abiertos" class="panel"><div id="abiertos-container"></div></div>
+  <div id="tab-abiertos" class="panel"><div id="prod-summary" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">
+        <div class="kpi"><div class="kpi-num" id="prod-pedidos">0</div><div class="kpi-label">Pedidos en producción</div></div>
+        <div class="kpi"><div class="kpi-num" id="prod-m2" style="color:var(--blue)">0</div><div class="kpi-label">m² pendientes (FV)</div></div>
+        <div class="kpi"><div class="kpi-num" id="prod-bag" style="color:var(--yellow)">0</div><div class="kpi-label">Baguettes pendientes (pzs)</div></div>
+      </div>
+      <div id="abiertos-container"></div></div>
 
   <div id="tab-historial" class="panel">
     <div class="kpi-row">
@@ -707,7 +712,14 @@ function registrarPedido(){if(!draft)return;const pais=document.getElementById("
               m2Pedido:m2V,piezasPedido:pzsV,piezasSobrante:0,m2Sobrante:0,obsLinea:""};
     }),estado:"abierto",fechaCierre:null,pfEnviado:false});saveData(db);showToast("Pedido registrado", false);resetNuevo();updateTabCounts();switchTab("abiertos");}
 function resetNuevo(){draft=null;document.getElementById("dropzone").style.display="block";document.getElementById("form-nuevo").style.display="none";document.getElementById("fileinput").value="";}
-function renderAbiertos(){const db=loadData();const abiertos=db.pedidos.filter(p=>p.estado==="abierto").reverse();const c=document.getElementById("abiertos-container");if(!abiertos.length){c.innerHTML='<div class="empty-state"><i class="ti ti-clock"></i><p>No hay pedidos en produccion</p></div>';return;}c.innerHTML="";abiertos.forEach(p=>{const card=document.createElement("div");card.className="pedido-card";const totalPzs=p.lines.reduce((s,l)=>s+(l.piezasSobrante||0),0);const isEdit=editMode.has(p.id);card.innerHTML=
+function renderAbiertos(){const db=loadData();const abiertos=db.pedidos.filter(p=>p.estado==="abierto").reverse();const c=document.getElementById("abiertos-container");
+  // Summary KPIs
+  var totalM2=abiertos.filter(function(p){return p.tipoPedido!=="bag";}).reduce(function(s,p){return s+p.lines.reduce(function(ss,l){return ss+(l.m2Pedido||0);},0);},0);
+  var totalBag=abiertos.filter(function(p){return p.tipoPedido==="bag";}).reduce(function(s,p){return s+p.lines.reduce(function(ss,l){return ss+(l.piezasPedido||0);},0);},0);
+  var elPed=document.getElementById("prod-pedidos");if(elPed)elPed.textContent=abiertos.length;
+  var elM2=document.getElementById("prod-m2");if(elM2)elM2.textContent=totalM2.toFixed(2);
+  var elBag=document.getElementById("prod-bag");if(elBag)elBag.textContent=totalBag.toLocaleString();
+if(!abiertos.length){c.innerHTML='<div class="empty-state"><i class="ti ti-clock"></i><p>No hay pedidos en produccion</p></div>';return;}c.innerHTML="";abiertos.forEach(p=>{const card=document.createElement("div");card.className="pedido-card";const totalPzs=p.lines.reduce((s,l)=>s+(l.piezasSobrante||0),0);const isEdit=editMode.has(p.id);card.innerHTML=
       '<div class="pedido-head" onclick="toggleCard('+p.id+')">'+
         '<div class="pedido-status status-open"></div>'+
         '<div class="pedido-head-info" style="min-width:0">'+
@@ -938,6 +950,7 @@ function enviarLineaPF(pid,li){
   if(!pzs){showToast("Esta línea no tiene piezas definidas",true);return;}
   statusEl.innerHTML='<div class="pf-status-bar pf-status-loading"><div class="spinner"></div> Enviando a PackFlow...</div>';
   if(btn)btn.disabled=true;
+  console.log("PackFlow payload:",{ref_id:refId,cantidad:pzs,inicio:inicioVal,cliente:p.cliente||"",obra:p.nombreObra||""});
   pfPost("ordenes",{id:"ORD-"+Date.now(),ref_id:refId,cantidad:pzs,inicio:inicioVal,fin:inicioVal,dias:0,cliente:p.cliente||"",obra:p.nombreObra||""}).then(function(){
     statusEl.innerHTML='<div class="pf-status-bar pf-status-ok"><i class="ti ti-check"></i> Orden creada: <strong>'+pzs+' piezas</strong> · inicio '+inicioVal+'</div>';
     p.pfEnviado=true;saveData(db);showToast("Orden creada en PackFlow",false);updateTabCounts();
