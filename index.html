@@ -945,6 +945,10 @@ function enviarLineaPF(pid,li){
   var db=loadData();
   var p=db.pedidos.find(function(x){return String(x.id)===String(pid);});
   if(!p)return;
+  // Warn if already sent but allow re-send
+  if(p.pfEnviado){
+    if(!confirm("Este pedido ya tiene órdenes enviadas a PackFlow. ¿Quieres enviar esta línea igualmente?"))return;
+  }
   var l=p.lines[li];
   var pzs=l.piezasPedido||0;
   if(!pzs){showToast("Esta línea no tiene piezas definidas",true);return;}
