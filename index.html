@@ -714,8 +714,8 @@ function registrarPedido(){if(!draft)return;const pais=document.getElementById("
 function resetNuevo(){draft=null;document.getElementById("dropzone").style.display="block";document.getElementById("form-nuevo").style.display="none";document.getElementById("fileinput").value="";}
 function renderAbiertos(){const db=loadData();const abiertos=db.pedidos.filter(p=>p.estado==="abierto").reverse();const c=document.getElementById("abiertos-container");
   // Summary KPIs
-  var totalM2=abiertos.filter(function(p){return p.tipoPedido!=="bag";}).reduce(function(s,p){return s+p.lines.reduce(function(ss,l){return ss+(l.m2Pedido||0);},0);},0);
-  var totalBag=abiertos.filter(function(p){return p.tipoPedido==="bag";}).reduce(function(s,p){return s+p.lines.reduce(function(ss,l){return ss+(l.piezasPedido||0);},0);},0);
+  var totalM2=abiertos.filter(function(p){return p.tipoPedido!=="bag";}).reduce(function(s,p){return s+p.lines.filter(function(l){return !l.asignado;}).reduce(function(ss,l){return ss+(l.m2Pedido||0);},0);},0);
+  var totalBag=abiertos.filter(function(p){return p.tipoPedido==="bag";}).reduce(function(s,p){return s+p.lines.filter(function(l){return !l.asignado;}).reduce(function(ss,l){return ss+(l.piezasPedido||0);},0);},0);
   var elPed=document.getElementById("prod-pedidos");if(elPed)elPed.textContent=abiertos.length;
   var elM2=document.getElementById("prod-m2");if(elM2)elM2.textContent=totalM2.toFixed(2);
   var elBag=document.getElementById("prod-bag");if(elBag)elBag.textContent=totalBag.toLocaleString();
