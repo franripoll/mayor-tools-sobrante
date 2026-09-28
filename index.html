@@ -56,6 +56,8 @@ input[type=file]{display:none}
 .type-btn.active-bag{background:rgba(227,179,65,.15);color:var(--yellow)}
 .type-btn:hover:not(.active-fv):not(.active-bag){background:rgba(255,255,255,.04);color:var(--text)}
 .badge-bag{background:rgba(227,179,65,.12);color:var(--yellow);border:1px solid rgba(227,179,65,.25)}
+.badge-muestra{background:rgba(63,185,80,.12);color:var(--green);border:1px solid rgba(63,185,80,.25);cursor:pointer}
+.badge-muestra-no{background:rgba(139,148,158,.08);color:var(--muted);border:1px solid var(--border);cursor:pointer}
 .line-info{flex:1;min-width:0}
 .line-ref{font-size:12px;font-weight:600;color:var(--text)}
 .line-sub{font-size:11px;color:var(--muted);margin-top:2px}
@@ -731,7 +733,7 @@ if(!abiertos.length){c.innerHTML='<div class="empty-state"><i class="ti ti-clock
         '</div>'+
         '<div class="pedido-head-badges">'+
           '<span class="badge badge-pais">'+(p.pais||'—')+'</span>'+
-          (p.pfEnviado?'<span class="badge badge-sent"><i class="ti ti-send" style="font-size:10px"></i> PackFlow</span>':'')+(p.tipoPedido==="bag"?'<span class="badge badge-bag">Baguettes</span>':'')+
+          (p.pfEnviado?'<span class="badge badge-sent"><i class="ti ti-send" style="font-size:10px"></i> PackFlow</span>':'')+(p.tipoPedido==="bag"?'<span class="badge badge-bag">Baguettes</span>':'')+(p.muestraEnviada?'<span class="badge badge-muestra" onclick="event.stopPropagation();toggleMuestra('+p.id+')"><i class="ti ti-test-pipe" style="font-size:10px"></i> Muestra '+( p.fechaMuestra||'')+'</span>':'<span class="badge badge-muestra-no" onclick="event.stopPropagation();toggleMuestra('+p.id+')"><i class="ti ti-test-pipe" style="font-size:10px"></i> Sin muestra</span>')+
           (isEdit?'':'<span class="badge badge-open"><i class="ti ti-clock" style="font-size:10px"></i> En produccion</span>')+
           (totalPzs>0?'<span style="font-size:12px;color:var(--orange);font-weight:600">'+totalPzs+' pzs</span>':'')+
           '<i class="ti ti-chevron-down" id="chev-'+p.id+'" style="color:var(--muted);font-size:15px"></i>'+
@@ -821,6 +823,7 @@ function saveEditPedidoInfo(pid){
   renderAbiertos();
 }
 
+function toggleMuestra(pid){var db=loadData();var p=db.pedidos.find(function(x){return x.id===pid;});if(!p)return;if(p.muestraEnviada){if(!confirm("Marcar muestra como NO enviada?"))return;p.muestraEnviada=false;p.fechaMuestra=null;}else{p.muestraEnviada=true;p.fechaMuestra=new Date().toLocaleDateString("es-ES");}saveData(db);renderAbiertos();renderHistorial();}
 function updateMedidasLine(pid,li){
   var el=document.getElementById("medidas-l-"+pid+"-"+li);
   if(!el)return;
@@ -1072,7 +1075,7 @@ function renderHistorial(){
         '</div>'+
         '<div class="pedido-head-badges">'+
           '<span class="badge badge-pais">'+(p.pais||'—')+'</span>'+
-          (p.pfEnviado?'<span class="badge badge-sent"><i class="ti ti-send" style="font-size:10px"></i> PackFlow</span>':'')+
+          (p.pfEnviado?'<span class="badge badge-sent"><i class="ti ti-send" style="font-size:10px"></i> PackFlow</span>':'')+(p.muestraEnviada?'<span class="badge badge-muestra" onclick="event.stopPropagation();toggleMuestra('+p.id+')"><i class="ti ti-test-pipe" style="font-size:10px"></i> Muestra '+(p.fechaMuestra||'')+'</span>':'<span class="badge badge-muestra-no" onclick="event.stopPropagation();toggleMuestra('+p.id+')"><i class="ti ti-test-pipe" style="font-size:10px"></i> Sin muestra</span>')+
           (totalPzs>0?'<span style="font-size:12px;color:var(--orange);font-weight:600">'+totalPzs+' pzs \u00b7 '+totalM2p.toFixed(2)+' m\u00b2 sob.</span>':'<span style="font-size:12px;color:var(--muted)">sin sobrante</span>')+
           (totalM2ped>0?'<span style="font-size:11px;color:var(--muted);margin-left:4px">/ '+totalM2ped.toFixed(2)+' m\u00b2 ped.'+(pctSob?' ('+pctSob+'%)':'')+' </span>':'')+
           '<span class="badge badge-closed">Cerrado</span>'+
