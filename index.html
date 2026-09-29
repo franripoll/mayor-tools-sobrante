@@ -1041,8 +1041,16 @@ function renderHistorial(){
     c.innerHTML='<div class="empty-state"><i class="ti ti-inbox"></i><p>No hay pedidos cerrados</p></div>';
     return;
   }
+
+  // Paginación: leer cuántos mostrar (guardado en el propio contenedor)
+  var anyFilter=fnp||fc||fo||fp||fa||ft;
+  if(anyFilter) c.setAttribute("data-show","5"); // resetear al filtrar
+  var showCount=anyFilter?filtered.length:(parseInt(c.getAttribute("data-show")||"5",10));
+  var visible=filtered.slice(0,showCount);
+  var remaining=filtered.length-showCount;
+
   c.innerHTML="";
-  filtered.forEach(function(p){
+  visible.forEach(function(p){
     var totalPzs=p.lines.reduce(function(s,l){return s+(l.piezasSobrante||0);},0);
     var totalM2p=p.lines.reduce(function(s,l){return s+(l.m2Sobrante||0);},0);
     var totalM2ped=p.lines.reduce(function(s,l){return s+(l.m2Pedido||0);},0);
@@ -1092,6 +1100,32 @@ function renderHistorial(){
       '</div>';
     c.appendChild(card);
   });
+
+  // Botón "Ver más"
+  if(!anyFilter && remaining>0){
+    var btnMore=document.createElement("div");
+    btnMore.style.cssText="text-align:center;padding:16px 0";
+    btnMore.innerHTML='<button class="btn btn-ghost" onclick="histVerMas()"><i class="ti ti-chevrons-down"></i> Ver '+remaining+' pedido'+(remaining!==1?'s':'')+' más</button>';
+    c.appendChild(btnMore);
+  }
+  if(!anyFilter && showCount>5){
+    var btnLess=document.createElement("div");
+    btnLess.style.cssText="text-align:center;padding:4px 0 16px";
+    btnLess.innerHTML='<button class="btn btn-ghost btn-sm" style="color:var(--muted)" onclick="histColapsar()"><i class="ti ti-chevrons-up"></i> Mostrar menos</button>';
+    c.appendChild(btnLess);
+  }
+}
+
+function histVerMas(){
+  var c=document.getElementById("hist-container");
+  var cur=parseInt(c.getAttribute("data-show")||"5",10);
+  c.setAttribute("data-show",cur+10);
+  renderHistorial();
+}
+function histColapsar(){
+  var c=document.getElementById("hist-container");
+  c.setAttribute("data-show","5");
+  renderHistorial();
 }
 
 function borrarPedidoHist(pid){const db=loadData();db.pedidos=db.pedidos.filter(x=>x.id!==pid);saveData(db);renderHistorial();}
