@@ -1079,7 +1079,7 @@ function renderHistorial(){
         '<div class="pedido-status status-closed"></div>'+
         '<div class="pedido-head-info">'+
           '<div class="pedido-head-title">'+(p.cliente||'—')+'</div>'+
-          '<div class="pedido-head-sub">'+(p.numObra?p.numObra+' – ':'')+' '+(p.nombreObra||'—')+' \u00b7 '+p.fecha+(p.fechaCierre?' \u2192 cerrado '+p.fechaCierre:'')+'</div>'+
+          '<div class="pedido-head-sub">'+(p.numPedido?'<span style="color:var(--blue);font-family:monospace;font-weight:600">'+p.numPedido+'</span> \u00b7 ':'')+( p.numObra?p.numObra+' – ':'')+' '+(p.nombreObra||'—')+' \u00b7 '+p.fecha+(p.fechaCierre?' \u2192 cerrado '+p.fechaCierre:'')+'</div>'+
         '</div>'+
         '<div class="pedido-head-badges">'+
           '<span class="badge badge-pais">'+(p.pais||'—')+'</span>'+
